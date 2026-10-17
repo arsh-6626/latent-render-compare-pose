@@ -1,0 +1,20 @@
+{
+  "data": "/media/kavinder/hdd2/liepose_data/symsolt",
+  "out": "/media/kavinder/hdd2/liepose_data/logs/probe/nce1.0",
+  "color_mode": "none",
+  "steps": 20000,
+  "batch_size": 64,
+  "lr": 0.0003,
+  "w_nce": 1.0,
+  "p_ref": 0.5,
+  "ema_tau": 0.996,
+  "dim": 384,
+  "depth": 6,
+  "pred_depth": 4,
+  "eval_every": 5000,
+  "eval_per_shape": 50,
+  "eval_rand": 2048,
+  "eval_eq": 64,
+  "max_train_per_shape": null,
+  "seed": 0
+}

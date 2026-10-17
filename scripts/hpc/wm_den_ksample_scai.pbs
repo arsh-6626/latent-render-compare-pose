@@ -1,0 +1,22 @@
+#!/bin/bash
+# K samples per image from a trained WM-native denoiser (no training), saving per-sample poses (+ the energy
+# denoiser's own energy) for selection: random / translation medoid / self-energy / v4 energy / oracle.
+#   qsub -N wmd-k16 -v MODE=energy scripts/hpc/wm_den_ksample_scai.pbs
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=128gb
+#PBS -l walltime=10:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+cd $P/code
+hostname
+export DATADIR=$P/data PYTHONPATH=$P/code/src TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$P/xdg_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.92
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.run --root_path $P/logs/experiments/symsolt-wmden \
+  "den_mode=[$MODE]" "batch_size=[32]" "n_slices=[16]" "train_steps=[400000]" "ckpt_steps=[25000]" \
+  "wm_dir=[$P/logs/probe/v4_trans]" "cache_dir=[$P/data/dino_cache]" \
+  "skip_train=[True]" "eval_samples=[16]" "eval_per_shape=[2000]" "eval_tag=[_k16]" \
+  > $P/logs/wmd_k16_${MODE}_${PBS_JOBID}.log 2>&1
+echo WMDK_DONE

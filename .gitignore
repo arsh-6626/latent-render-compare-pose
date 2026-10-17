@@ -161,3 +161,9 @@ cython_debug/
 logs/
 dataset/
 .caches/
+# Local training outputs / checkpoints (results/ holds the small JSON summaries)
+/experiments/
+*.msgpack
+*.npz
+*.npy
+ocdbt.process_*/

@@ -9,8 +9,18 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 from flax import jax_utils
-from flax.metrics import tensorboard
 from flax.training import checkpoints, train_state
+try:
+  from flax.metrics import tensorboard
+except Exception:
+  class _DummySummaryWriter:
+    def __init__(self, *args, **kwargs): pass
+    def scalar(self, *args, **kwargs): pass
+    def flush(self): pass
+  class _DummyTensorboardModule:
+    SummaryWriter = _DummySummaryWriter
+  tensorboard = _DummyTensorboardModule()
+
 from jaxlie import MatrixLieGroup
 from tqdm import tqdm
 
@@ -59,7 +69,7 @@ def save_checkpoint(ckpt_dir: str, target: TrainState, step: Any):
   if jax.process_index() > 0:
     return
   return checkpoints.save_checkpoint(
-    ckpt_dir=ckpt_dir, target=target, step=step, keep=float("inf")
+    ckpt_dir=os.path.abspath(ckpt_dir), target=target, step=step, keep=float("inf")
   )
 
 
@@ -220,7 +230,10 @@ class Testbed(abc.ABC):
 
       rt = lie_metrics.as_lie(rt)
       if learn_noise:
-        zt = lie_metrics.as_tan(mu)
+        # The chordal loss only constrains exp(mu), so the net may output a non-principal
+        # (2π-wrapped) tangent; the sampler scales zt by noise levels < 1, so map it back to
+        # the principal log first.
+        zt = lie_metrics.as_lie(mu).log()
         r0 = ops.lsub(rt, Lie.exp(sa * zt))
       else:
         r0 = lie_metrics.as_lie(mu)
@@ -257,7 +270,10 @@ class Testbed(abc.ABC):
       # estimate r0 from rt using inverse of Eq.7
       rt = lie_metrics.as_lie(rt)
       if learn_noise:
-        zt = lie_metrics.as_tan(mu)
+        # The chordal loss only constrains exp(mu), so the net may output a non-principal
+        # (2π-wrapped) tangent; the sampler scales zt by noise levels < 1, so map it back to
+        # the principal log first.
+        zt = lie_metrics.as_lie(mu).log()
         r0 = ops.lsub(rt, Lie.exp(sa * zt))
       else:
         r0 = lie_metrics.as_lie(mu)
@@ -509,7 +525,7 @@ class Testbed(abc.ABC):
 
   def create_update_ema_fn(self) -> Callable:
     def update_ema_fn(state, tau):
-      params_ema = jax.tree_map(
+      params_ema = jax.tree_util.tree_map(
         lambda p_ema, p: p_ema * tau + p * (1.0 - tau), state.params_ema, state.params
       )
       state = state.replace(params_ema=params_ema)
@@ -624,7 +640,7 @@ class Testbed(abc.ABC):
 
   def create_update_ema_fn_pmap(self, axis_name="gpu") -> Callable:
     def update_ema_fn(state, tau):
-      params_ema = jax.tree_map(
+      params_ema = jax.tree_util.tree_map(
         lambda p_ema, p: p_ema * tau + p * (1.0 - tau), state.params_ema, state.params
       )
       state = state.replace(params_ema=params_ema)

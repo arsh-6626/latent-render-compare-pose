@@ -1,0 +1,22 @@
+#!/bin/bash
+# World-model-native denoisers on SYMSOL-T (dit / dit_nowm / energy / fm_dit / fm_dit_nowm).
+#   qsub -N wmd-<mode> -v MODE=<mode> scripts/hpc/wm_den_scai.pbs   (resubmit to resume from the last checkpoint)
+# Shared config: 32 images x 16 poses per step, 400k steps, ckpt every 25k, world model v4 (frozen except energy).
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=128gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+cd $P/code
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+export DATADIR=$P/data PYTHONPATH=$P/code/src TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$P/xdg_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.92
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.run --root_path $P/logs/experiments/symsolt-wmden \
+  "den_mode=[$MODE]" "batch_size=[32]" "n_slices=[16]" "train_steps=[400000]" "ckpt_steps=[25000]" \
+  "wm_dir=[$P/logs/probe/v4_trans]" "cache_dir=[$P/data/dino_cache]" \
+  > $P/logs/wmd_${MODE}_${PBS_JOBID}.log 2>&1
+echo WMD_DONE

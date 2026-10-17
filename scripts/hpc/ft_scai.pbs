@@ -1,0 +1,36 @@
+#!/bin/bash
+# Week-2 fix: fine-tune from the trained 64-slice LiePose checkpoint (200k steps, init_lr 5e-5).
+#   qsub -N ft-cmpe -v MODE=cmpe scripts/hpc/ft_scai.pbs   # train translation-aware WM v4, then gated compare_e
+#   qsub -N ft-none -v MODE=none scripts/hpc/ft_scai.pbs   # control: same fine-tune, no conditioning
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=128gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+cd $P/code
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+export DATADIR=$P/data PYTHONPATH=$P/code/src TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$P/xdg_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+PY=$P/env/liepose/bin/python
+INIT=$P/logs/experiments/symsolt-cmp/train_steps=800000+n_slices=64+seed=42+cond_mode=none/ckpt
+WM=$P/logs/probe/v4_trans
+LOG=$P/logs/ft_${MODE}_${PBS_JOBID}.log
+COMMON=("n_slices=[64]" "named_cond=[True]" "init_from=[$INIT]" "init_step=[800000]" "train_steps=[200000]"
+        "init_lr=[5e-5]" "ckpt_steps=[50000]" "cache_dir=[$P/data/dino_cache]")
+
+if [ "$MODE" = cmpe ]; then
+  if [ ! -f $WM/params.msgpack ]; then
+    $PY -u -m liepose.exp.jepa_probe.probe_frozen --cache $P/data/dino_cache --out $WM --init $P/data/wm_v3_soft15 \
+      --train_split train-225k --soft_sigma 15 --near_min_deg 0 --n_uni 11 --n_near 12 --n_tuni 4 --n_tnear 4 \
+      --sigma_t 0.1 --steps 15000 --lr 1e-4 --eval_every 5000 > $P/logs/wm_v4_${PBS_JOBID}.log 2>&1 || exit 1
+  fi
+  $PY -u -m liepose.exp.cmp.run --root_path $P/logs/experiments/symsolt-ft "cond_mode=[compare_e]" "cond_gate_t=[40]" \
+    "wm_dir=[$WM]" "${COMMON[@]}" > $LOG 2>&1
+else
+  $PY -u -m liepose.exp.cmp.run --root_path $P/logs/experiments/symsolt-ft "cond_mode=[none]" "${COMMON[@]}" > $LOG 2>&1
+fi
+echo FT_DONE

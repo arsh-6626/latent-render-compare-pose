@@ -1,0 +1,48 @@
+{
+  "cache": "/media/kavinder/hdd2/liepose_data/speedplus_tokens",
+  "out": "/media/kavinder/hdd2/liepose_data/logs/probe/speedplus_v1_ceil",
+  "models_info": "none",
+  "t_scale": [
+    1.0,
+    1.0,
+    1.0
+  ],
+  "val_split": "val",
+  "test_splits": [
+    "lightbox",
+    "sunlamp"
+  ],
+  "template": "/media/kavinder/hdd2/liepose_data/logs/probe/speedplus_v1",
+  "init": null,
+  "lam": 0.0,
+  "max_sym": 36,
+  "ref_noise_deg": 5.0,
+  "ref_noise_t": 0.1,
+  "steps": 30000,
+  "batch_size": 32,
+  "n_uni": 11,
+  "n_near": 12,
+  "near_max_deg": 30.0,
+  "n_tnear": 4,
+  "n_tuni": 4,
+  "tnear_std": 0.2,
+  "soft_sigma": 10.0,
+  "sigma_t": 0.1,
+  "w_rec": 1.0,
+  "lr": 0.0002,
+  "dim": 384,
+  "depth": 6,
+  "val_frac": 0.03,
+  "ceil_n": 500,
+  "ceil_per_bin": 16,
+  "ceil_uni": 64,
+  "ceil_tran": 16,
+  "ceil_tstd": 0.1,
+  "eval_every": 5000,
+  "seed": 0,
+  "T_SCALE": [
+    1.0,
+    1.0,
+    1.0
+  ]
+}

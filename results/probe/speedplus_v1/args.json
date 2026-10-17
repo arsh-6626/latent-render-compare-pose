@@ -1,0 +1,21 @@
+{
+  "cache": "/media/kavinder/hdd2/liepose_data/speedplus_tokens",
+  "out": "/media/kavinder/hdd2/liepose_data/logs/probe/speedplus_v1",
+  "models_info": "none",
+  "test_split": "val",
+  "steps": 30000,
+  "batch_size": 32,
+  "n_uni": 15,
+  "n_near": 16,
+  "near_max_deg": 30.0,
+  "soft_sigma": 15.0,
+  "w_rec": 1.0,
+  "lr": 0.0003,
+  "dim": 384,
+  "depth": 6,
+  "eval_every": 5000,
+  "eval_n": 300,
+  "eval_rand": 2048,
+  "max_train": null,
+  "seed": 0
+}

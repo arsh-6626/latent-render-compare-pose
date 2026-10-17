@@ -1,0 +1,28 @@
+#!/bin/bash
+# Upstream LiePose SE(3) on T-LESS (400k steps, batch 64 x 256 slices), resumable.
+#   qsub -N tless-se3 scripts/hpc/tless_liepose_scai.pbs     (resubmit to continue after the 24 h cap)
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=128gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+cd $P/code
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+
+export DATADIR=$P/data
+export PYTHONPATH=$P/code/src:$P/code/lib/bop_toolkit
+export TORCH_HOME=$P/torch_home
+export XDG_CACHE_HOME=$P/xdg_cache
+export CACHE_ROOT_PATH=$P/data/bop_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+mkdir -p $CACHE_ROOT_PATH
+
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.bop_run \
+  --root_path $P/logs/experiments/tless-se3 "lie_type=[se3]" "ckpt_steps=[25000]" "num_workers=[${NW:-12}]" \
+  > $P/logs/tless_se3_${PBS_JOBID}.log 2>&1
+
+echo TLESS_DONE

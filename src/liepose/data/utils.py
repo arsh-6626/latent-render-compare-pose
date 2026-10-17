@@ -2,20 +2,26 @@ import json
 import random
 
 import numpy as np
-import torch
-from torch.utils.data import DataLoader
+try:
+  import torch
+  from torch.utils.data import DataLoader
+except Exception:
+  torch = None
+  DataLoader = None
 
 
 def set_seed(seed):
   np.random.seed(seed)
   random.seed(seed)
-  torch.manual_seed(seed)
+  if torch is not None:
+    torch.manual_seed(seed)
 
 
 def seed_worker(worker_id):
-  worker_seed = torch.initial_seed() % 2**32
-  np.random.seed(worker_seed)
-  random.seed(worker_seed)
+  if torch is not None:
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 
 def repeat_dataloader(dataloader: DataLoader):

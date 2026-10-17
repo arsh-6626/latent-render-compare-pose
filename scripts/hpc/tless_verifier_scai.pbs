@@ -1,0 +1,22 @@
+#!/bin/bash
+# T-LESS verifier test (random / medoid / min-energy / oracle over K LiePose samples per test crop).
+#   qsub -N tless-ver -v STEP=400000,MAXB= scripts/hpc/tless_verifier_scai.pbs
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=8:ngpus=1:mem=96gb
+#PBS -l walltime=06:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+cd $P/code
+hostname
+export DATADIR=$P/data PYTHONPATH=$P/code/src:$P/code/lib/bop_toolkit TORCH_HOME=$P/torch_home
+export XDG_CACHE_HOME=$P/xdg_cache CACHE_ROOT_PATH=$P/data/bop_cache XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+EXP="$P/logs/experiments/tless-se3/lie_type=se3+repr_type=tan+timesteps=100+seed=42"
+EXTRA=""
+[ -n "$MAXB" ] && EXTRA="--max_batches $MAXB"
+$P/env/liepose/bin/python -u scripts/tless/verifier_eval.py "$EXP" --step ${STEP:-400000} --wm $P/data/wm_tless_v1 \
+  --tokens $P/data/tless_tokens --k 16 $EXTRA --out $P/logs/tless_verifier_s${STEP}_b${MAXB:-all}.json \
+  > $P/logs/tless_verifier_s${STEP}_b${MAXB:-all}_${PBS_JOBID}.log 2>&1
+echo VER_DONE

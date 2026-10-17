@@ -1,6 +1,9 @@
 import os
 
-import healpy as hp
+try:
+  import healpy as hp
+except Exception:
+  hp = None
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt

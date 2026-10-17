@@ -23,6 +23,8 @@ def get_args(exp_name="exp1", desc="Liepose"):
 
 def merge_config(explorations, conf: OmegaConf, Type=Explorations) -> Explorations:
   conf = OmegaConf.to_container(conf, resolve=True)
+  if Type == Explorations and isinstance(conf, dict):
+    conf = {k: [v] if not isinstance(v, (list, tuple)) else v for k, v in conf.items()}
   explorations.merge(Type(conf))
   return explorations
 

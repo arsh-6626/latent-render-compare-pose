@@ -1,0 +1,13 @@
+{
+  "tokens": "/media/kavinder/hdd2/liepose_data/tless_tokens",
+  "wm": "/media/kavinder/hdd2/liepose_data/logs/probe/tless_v1",
+  "test_samples": "/media/kavinder/hdd2/liepose_data/logs/tless_verifier_400k_noema_samples.npz",
+  "out": "/media/kavinder/hdd2/liepose_data/logs/probe/tless_refiner_nowm",
+  "steps": 40000,
+  "batch": 128,
+  "lr": 0.0003,
+  "w_t": 1.0,
+  "eval_every": 40000,
+  "seed": 0,
+  "no_wm": true
+}
