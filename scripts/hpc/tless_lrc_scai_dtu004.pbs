@@ -15,7 +15,17 @@ cd $P/code_lrc
 hostname
 nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
 
-export DATADIR=$P/data
+# stage the token cache on node-local disk: random per-step reads of the 8.3 GB memmap from Lustre ran at ~12 s/it
+T=${TMPDIR:-/tmp}/lrc_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+df -h $T | tail -1
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/tless_tokens
+if ! cp -rL $P/data/tless_tokens $T/data/; then  # local disk too small: hold it in RAM
+  rm -rf $T/data/tless_tokens; mkdir -p /dev/shm/lrc_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/lrc_${PBS_JOBID%%.*}" EXIT
+  cp -rL $P/data/tless_tokens /dev/shm/lrc_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/lrc_${PBS_JOBID%%.*}/tless_tokens $T/data/
+fi
+du -sh $T/data/tless_tokens
+export DATADIR=$T/data
 export PYTHONPATH=$P/code_lrc/src:$P/code/lib/bop_toolkit
 export TORCH_HOME=$W/torch_home XDG_CACHE_HOME=$W/xdg_cache CACHE_ROOT_PATH=$W/bop_cache
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy
