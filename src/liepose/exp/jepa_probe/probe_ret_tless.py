@@ -104,8 +104,8 @@ def noisy(rng, R, t, deg, tstd):
 class Sampler:
   """[GT | n_uni uniform R | n_near near R | n_tnear near t | n_tuni other crops' t] per training crop."""
 
-  def __init__(self, data, rows, bank, syms, a):
-    self.data, self.rows, self.bank, self.syms, self.a = data, rows, bank, syms, a
+  def __init__(self, data, rows, bank, syms, a, meta=None):
+    self.data, self.rows, self.bank, self.syms, self.a, self.meta = data, rows, bank, syms, a, meta
 
   def __call__(self, rng):
     a, d = self.a, self.data
@@ -128,7 +128,8 @@ class Sampler:
     img, Rr, tr = self.bank.query(d.obj[b], Rq, tq, d.index[b])
     return {"zr": d.tokens[img], "Rr": Rr.astype(np.float32), "tr": (tr / T_SCALE).astype(np.float32),
             "Rc": R.astype(np.float32), "tc": (t / T_SCALE).astype(np.float32), "tgt": d.tokens[b], "fg": d.fg[b],
-            "d_gt": d_gt, "dt_gt": dt_gt}
+            "d_gt": d_gt, "dt_gt": dt_gt,
+            **({} if self.meta is None else {"kr": self.meta[img], "kg": self.meta[b]})}
 
 
 def make_train_step(model, tx, soft_sigma, sigma_t, w_rec):
@@ -136,8 +137,9 @@ def make_train_step(model, tx, soft_sigma, sigma_t, w_rec):
   def loss_fn(params, b):
     B, C = b["Rc"].shape[:2]
     rep = lambda x: jnp.repeat(x, C, axis=0)
+    ks = (rep(b["kr"]), rep(b["kg"])) if "kr" in b else ()
     pred = model.apply(params, rep(b["zr"].astype(jnp.float32)), rep(b["Rr"]), rep(b["tr"]), b["Rc"].reshape(B * C, 3, 3),
-                       b["tc"].reshape(B * C, 3)).reshape(B, C, -1, b["tgt"].shape[-1])
+                       b["tc"].reshape(B * C, 3), *ks).reshape(B, C, -1, b["tgt"].shape[-1])
     e = weighted_energy(pred, b["tgt"].astype(jnp.float32)[:, None], (FG_FLOOR + b["fg"])[:, None])
     tau = jnp.exp(params["params"]["log_tau"])
     target = jax.nn.softmax(-0.5 * (b["d_gt"] / soft_sigma) ** 2 - 0.5 * (b["dt_gt"] / sigma_t) ** 2, axis=-1)
@@ -209,18 +211,21 @@ def save_energies(out, name, ceil, E):
            is_rot=ceil.is_rot)
 
 
-def ret_energies(model, params, ceil, refs, obs):
-  """refs: the split the bank indexes (train), obs: the split of the observations"""
+def ret_energies(model, params, ceil, refs, obs, ref_meta=None, obs_meta=None):
+  """refs: the split the bank indexes (train), obs: the split of the observations; *_meta: crop meta (geometry)"""
   @jax.jit
-  def energy(zr, Rr, tr, tgt, fg, Rc, tc):
+  def energy(zr, Rr, tr, tgt, fg, Rc, tc, kr, kg):
     n = Rc.shape[0]
+    ks = () if kr is None else (jnp.broadcast_to(kr, (n,) + kr.shape), jnp.broadcast_to(kg, (n,) + kg.shape))
     pred = model.apply(params, jnp.broadcast_to(zr.astype(jnp.float32), (n,) + zr.shape), jnp.broadcast_to(Rr, (n, 3, 3)),
-                       jnp.broadcast_to(tr, (n, 3)), Rc, tc)
+                       jnp.broadcast_to(tr, (n, 3)), Rc, tc, *ks)
     return weighted_energy(pred, tgt.astype(jnp.float32)[None], (FG_FLOOR + fg)[None])
 
   ts = T_SCALE.astype(np.float32)
+  geo = ref_meta is not None
   return np.stack([np.asarray(energy(refs.tokens[ceil.img[k]], ceil.Rr[k].astype(np.float32), (ceil.tr[k] / ts).astype(np.float32),
-                                     obs.tokens[i], obs.fg[i], ceil.R[k], ceil.t[k] / ts))
+                                     obs.tokens[i], obs.fg[i], ceil.R[k], ceil.t[k] / ts,
+                                     ref_meta[ceil.img[k]] if geo else None, obs_meta[i] if geo else None))
                    for k, i in enumerate(ceil.rows)])
 
 
@@ -262,6 +267,8 @@ def main():
   p.add_argument("--eval_every", type=int, default=5000)
   p.add_argument("--seed", type=int, default=0)
   p.add_argument("--eval_only", action="store_true", help="re-run the final eval of the checkpoint in --out")
+  p.add_argument("--geo", action="store_true", help="geometry tokens (SPEED+ only: sp_geometry, needs --crops)")
+  p.add_argument("--crops", default=None, help="export_crops dirs <crops>/<split> (box meta for --geo)")
   a = p.parse_args()
   global T_SCALE
   T_SCALE = np.array(a.t_scale)
@@ -317,14 +324,26 @@ def main():
     return
 
   bank = TlessBank(train, train_rows, syms, a.lam, a.max_sym)
-  model = RetPoseModel(dim=a.dim, depth=a.depth, heads=a.dim // 64, out_dim=train.tokens.shape[-1], geo=False)
-  params = init_model(model, train.tokens.shape[1], train.tokens.shape[-1], a.seed, a.init)
+  meta, geo_fn = {}, None
+  if a.geo:  # crop meta from the box only (sp_geometry.crop_meta), row-aligned with the token caches
+    from liepose.exp.jepa_probe.sp_geometry import SpeedPlusGeometry, crop_meta
+    geo_fn = SpeedPlusGeometry()
+    for s, d in [("train", train)] + ([(a.val_split, val)] if a.val_split else []) + list(tests.items()):
+      k, idx, ts_ = crop_meta(os.path.join(a.crops, s))
+      assert len(k) == len(d.obj) and (idx == d.index).all() and np.abs(ts_ - d.t).max() < 1e-5, s
+      meta[s] = k
+  vname = a.val_split or "train"
+  model = RetPoseModel(dim=a.dim, depth=a.depth, heads=a.dim // 64, out_dim=train.tokens.shape[-1], geo=a.geo,
+                       geo_fn=geo_fn)
+  params = init_model(model, train.tokens.shape[1], train.tokens.shape[-1], a.seed, a.init,
+                      k=meta["train"][:1] if a.geo else None)
   print(f"params: {sum(x.size for x in jax.tree_util.tree_leaves(params)) / 1e6:.1f}M", flush=True)
   sched = optax.warmup_cosine_decay_schedule(0.0, a.lr, min(1000, a.steps // 10), a.steps, a.lr * 0.05)
   tx = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(sched, weight_decay=0.05))
   opt_state = tx.init(params)
   step_fn = make_train_step(model, tx, a.soft_sigma, a.sigma_t, a.w_rec)
-  sampler = Sampler(train, train_rows, bank, syms, a)
+  sampler = Sampler(train, train_rows, bank, syms, a, meta.get("train"))
+  mk = lambda s: (meta["train"], meta[s]) if a.geo else ()
   ceil_val = Ceiling(val, val_obs, syms, bank, a, 7)  # held-out val images are not in the bank
 
   logf = open(os.path.join(a.out, "log.jsonl"), "a")
@@ -333,7 +352,7 @@ def main():
   def run_eval(step):
     nonlocal best
     t0 = time.time()
-    s = ceil_val.summary(ret_energies(model, params, ceil_val, train, val))
+    s = ceil_val.summary(ret_energies(model, params, ceil_val, train, val, *mk(vname)))
     rec = {"step": step, "val": s, "eval_sec": time.time() - t0}
     logf.write(json.dumps(rec) + "\n")
     logf.flush()
@@ -368,12 +387,12 @@ def main():
 
   # the chosen checkpoint, once on test
   params = flax.serialization.from_bytes(params, open(os.path.join(a.out, "params.msgpack"), "rb").read())
-  E = ret_energies(model, params, ceil_val, train, val)
+  E = ret_energies(model, params, ceil_val, train, val, *mk(vname))
   res = {"val": ceil_val.summary(E)}
   save_energies(a.out, "val", ceil_val, E)
   for k, s in enumerate(a.test_splits):
     c = Ceiling(tests[s], test_obs[s], syms, bank, a, 8 + k)
-    E = ret_energies(model, params, c, train, tests[s])
+    E = ret_energies(model, params, c, train, tests[s], *mk(s))
     res[s] = c.summary(E)
     save_energies(a.out, s, c, E)
   print("final", json.dumps(res), flush=True)

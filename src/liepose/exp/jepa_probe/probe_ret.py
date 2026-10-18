@@ -22,6 +22,7 @@ During training, the in-loop eval is the refinement-ceiling pick error on ceilin
 """
 
 import argparse
+from typing import Any
 import json
 import os
 import time
@@ -191,6 +192,7 @@ class GeoPredictor(nn.Module):
   depth: int
   heads: int
   geo: bool
+  geo_fn: Any = None  # geometry(...) replacement for other cameras (sp_geometry.SpeedPlusGeometry)
 
   @nn.compact
   def __call__(self, z, Rr, tr, Rg, tg, kr=None, kg=None):
@@ -201,7 +203,7 @@ class GeoPredictor(nn.Module):
     pre = [c[:, None]]
     if self.geo:
       grid = int(round(np.sqrt(z.shape[1])))
-      tok, vpt = geometry(Rr, tr, Rg, tg, grid, kr, kg)
+      tok, vpt = (self.geo_fn or geometry)(Rr, tr, Rg, tg, grid, kr, kg)
       x = x + nn.Dense(self.dim, name="geo_tok", kernel_init=nn.initializers.zeros)(
         nn.gelu(nn.Dense(self.dim, name="geo_tok_h")(fourier(tok, -2, 6))))
       v = nn.Dense(self.dim, name="vpt_tok")(nn.gelu(nn.Dense(self.dim, name="vpt_tok_h")(fourier(vpt, -2, 6))))
@@ -221,9 +223,10 @@ class RetPoseModel(nn.Module):
   out_dim: int = 384
   geo: bool = True
   resid: bool = False  # output = learned change + a * reference tokens (a starts at 0: same function as without)
+  geo_fn: Any = None
 
   def setup(self):
-    self.predictor = GeoPredictor(dim=self.dim, depth=self.depth, heads=self.heads, geo=self.geo)
+    self.predictor = GeoPredictor(dim=self.dim, depth=self.depth, heads=self.heads, geo=self.geo, geo_fn=self.geo_fn)
     self.proj = nn.Dense(self.out_dim)
     self.log_tau = self.param("log_tau", nn.initializers.constant(-2.0), ())
     if self.resid:
@@ -234,10 +237,12 @@ class RetPoseModel(nn.Module):
     return out + self.ref_gain * z_ref if self.resid else out
 
 
-def init_model(model, n_tok, out_dim, seed=0, init=None):
+def init_model(model, n_tok, out_dim, seed=0, init=None, k=None):
+  """k: an example crop meta (1, m) for models whose geometry needs one (both reference and target)"""
   z = jnp.zeros((1, n_tok, out_dim))
   e = jnp.eye(3)[None]
-  params = model.init(jax.random.PRNGKey(seed), z, e, jnp.zeros((1, 3)), e, jnp.zeros((1, 3)))
+  params = model.init(jax.random.PRNGKey(seed), z, e, jnp.zeros((1, 3)), e, jnp.zeros((1, 3)),
+                      *(() if k is None else (jnp.asarray(k), jnp.asarray(k))))
   if init:
     src = flax.serialization.msgpack_restore(open(os.path.join(init, "params.msgpack"), "rb").read())
     flat, sflat = flax.traverse_util.flatten_dict(flax.core.unfreeze(params)), flax.traverse_util.flatten_dict(src)

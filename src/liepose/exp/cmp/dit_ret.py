@@ -28,6 +28,7 @@ are unchanged. The reference lookup is a CPU KD-tree, so sampling is a Python lo
 import json
 import os
 from types import SimpleNamespace
+from typing import Any
 
 import flax
 import flax.linen as nn
@@ -71,10 +72,12 @@ class RetDenoiser(nn.Module):
   wm_depth: int = 6
   wm_geo: bool = True
   tok_dim: int = 384
+  geo_fn: Any = None  # world-model geometry for other cameras (sp_geometry.SpeedPlusGeometry)
+  crop_fn: Any = None  # crop meta -> conditioning features (default: SYMSOL-T crop_feat)
 
   def setup(self):
     self.wm = RetPoseModel(dim=self.wm_dim, depth=self.wm_depth, heads=self.wm_dim // 64, out_dim=self.tok_dim,
-                           geo=self.wm_geo)
+                           geo=self.wm_geo, geo_fn=self.geo_fn)
     self.net = TokenTransformer(self.dim, self.depth, self.heads)
     self.t_emb = PosEmbed(256, self.dim, True)
     self.g_emb = PosEmbed(256, self.dim, False)
@@ -91,7 +94,7 @@ class RetDenoiser(nn.Module):
     z_hat = jax.lax.stop_gradient(self.render(zr, Rr, tr, kr, Rg, tg, kg))
     if self.mode == "dit_nowm":
       z_hat = jnp.zeros_like(z_hat)
-    h = self.t_emb(t) + self.g_emb(rt) + self.k_emb(crop_feat(kg))
+    h = self.t_emb(t) + self.g_emb(rt) + self.k_emb((self.crop_fn or crop_feat)(kg))
     if self.mode == "dit_ray":
       h = h + self.h_emb(ray_feat(tg, kg))
     c = self.c_mlp(jax.nn.silu(h))
