@@ -203,6 +203,12 @@ class Ceiling:
     return res
 
 
+def save_energies(out, name, ceil, E):
+  """per-candidate energies, for metrics computed outside (e.g. scripts/speedplus/esa_score.py)"""
+  np.savez(os.path.join(out, f"energies_{name}.npz"), rows=ceil.rows, R=ceil.R, t=ceil.t, E=E, kind=ceil.kind,
+           is_rot=ceil.is_rot)
+
+
 def ret_energies(model, params, ceil, refs, obs):
   """refs: the split the bank indexes (train), obs: the split of the observations"""
   @jax.jit
@@ -255,11 +261,13 @@ def main():
   p.add_argument("--ceil_tstd", type=float, default=0.1)
   p.add_argument("--eval_every", type=int, default=5000)
   p.add_argument("--seed", type=int, default=0)
+  p.add_argument("--eval_only", action="store_true", help="re-run the final eval of the checkpoint in --out")
   a = p.parse_args()
   global T_SCALE
   T_SCALE = np.array(a.t_scale)
   os.makedirs(a.out, exist_ok=True)
-  json.dump({**vars(a), "T_SCALE": T_SCALE.tolist()}, open(os.path.join(a.out, "args.json"), "w"), indent=2)
+  if not a.eval_only:
+    json.dump({**vars(a), "T_SCALE": T_SCALE.tolist()}, open(os.path.join(a.out, "args.json"), "w"), indent=2)
   print(jax.devices(), flush=True)
   train = TokenSplit(a.cache, "train")
   tests = {s: TokenSplit(a.cache, s) for s in a.test_splits}
@@ -303,6 +311,7 @@ def main():
       E = np.stack([np.asarray(energy(jnp.full((ceil.R.shape[1],), int(obj2idx[data.obj[i]])), pose_feat(ceil.R[k], ceil.t[k]), data.tokens[i], data.fg[i]))
                     for k, i in enumerate(rows)])
       res[name] = ceil.summary(E)
+      save_energies(a.out, name, ceil, E)
       print(name, json.dumps(res[name]), flush=True)
     json.dump(res, open(os.path.join(a.out, "ceiling.json"), "w"), indent=2)
     return
@@ -335,7 +344,10 @@ def main():
         f.write(flax.serialization.to_bytes(params))
 
   rng = np.random.default_rng(a.seed)
-  run_eval(0)
+  if a.eval_only:
+    a.steps = 0
+  else:
+    run_eval(0)
   ex = ThreadPoolExecutor(1)
   fut = ex.submit(sampler, rng)
   t0 = time.time()
@@ -356,12 +368,16 @@ def main():
 
   # the chosen checkpoint, once on test
   params = flax.serialization.from_bytes(params, open(os.path.join(a.out, "params.msgpack"), "rb").read())
-  res = {"val": ceil_val.summary(ret_energies(model, params, ceil_val, train, val))}
+  E = ret_energies(model, params, ceil_val, train, val)
+  res = {"val": ceil_val.summary(E)}
+  save_energies(a.out, "val", ceil_val, E)
   for k, s in enumerate(a.test_splits):
     c = Ceiling(tests[s], test_obs[s], syms, bank, a, 8 + k)
-    res[s] = c.summary(ret_energies(model, params, c, train, tests[s]))
+    E = ret_energies(model, params, c, train, tests[s])
+    res[s] = c.summary(E)
+    save_energies(a.out, s, c, E)
   print("final", json.dumps(res), flush=True)
-  json.dump(res, open(os.path.join(a.out, "ceiling.json"), "w"), indent=2)
+  json.dump(res, open(os.path.join(a.out, "ceiling_eval.json" if a.eval_only else "ceiling.json"), "w"), indent=2)
 
 
 if __name__ == "__main__":
