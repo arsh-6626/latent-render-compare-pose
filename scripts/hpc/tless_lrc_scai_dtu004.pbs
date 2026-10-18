@@ -1,0 +1,27 @@
+#!/bin/bash
+# T-LESS latent render-and-compare denoiser on scai_q from the dtu004 account (= scripts/launch/tless_lrc.sh).
+# Reads env / data / code from the dtu001 project dir; writes to dtu004 scratch.
+#   qsub -N tless-dit -v MODE=dit tless_lrc_scai_dtu004.pbs      (MODE=dit_nowm for the control)
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=64gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu004.visitor/lrc/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+W=/scratch/hpc/visitor/dtu004.visitor/lrc
+cd $P/code_lrc
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+
+export DATADIR=$P/data
+export PYTHONPATH=$P/code_lrc/src:$P/code/lib/bop_toolkit
+export TORCH_HOME=$W/torch_home XDG_CACHE_HOME=$W/xdg_cache CACHE_ROOT_PATH=$W/bop_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy
+mkdir -p $CACHE_ROOT_PATH $W/experiments/tless-lrc
+
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.tless_dit --root_path $W/experiments/tless-lrc "den_mode=[$MODE]" \
+  "wm_dir=[$P/data/probe/tless_ret_v1]" "train_steps=[100000]" "num_workers=[8]" \
+  > $W/logs/tless_lrc_${MODE}_${PBS_JOBID}.log 2>&1
+echo "TLESS_LRC_DONE $?"
