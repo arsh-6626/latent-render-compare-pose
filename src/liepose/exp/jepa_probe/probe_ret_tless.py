@@ -267,6 +267,9 @@ def main():
   p.add_argument("--eval_every", type=int, default=5000)
   p.add_argument("--seed", type=int, default=0)
   p.add_argument("--eval_only", action="store_true", help="re-run the final eval of the checkpoint in --out")
+  p.add_argument("--train_objs", nargs="+", type=int, default=None,
+                 help="held-out-object test: train and select on these objects only; the other objects' training crops "
+                      "are reference views (bank) only, and test observations are scored separately for seen / unseen")
   p.add_argument("--geo", action="store_true", help="geometry tokens (SPEED+ only: sp_geometry, needs --crops)")
   p.add_argument("--crops", default=None, help="export_crops dirs <crops>/<split> (box meta for --geo)")
   a = p.parse_args()
@@ -291,9 +294,24 @@ def main():
     held = np.random.default_rng(1234).permutation(grp)[: int(a.val_frac * len(grp))]
     is_val = np.isin(train.index, held)
     val, val_rows, train_rows = train, np.nonzero(is_val)[0], np.nonzero(~is_val)[0]
-    np.save(os.path.join(a.out, "val_rows.npy"), val_rows)
+    ref_rows = train_rows  # reference bank at test: every object's (non-val) training crops
+    if a.train_objs:
+      seen = np.isin(train.obj, a.train_objs)
+      val_rows, train_rows = val_rows[seen[val_rows]], train_rows[seen[train_rows]]
+      print(f"held-out objects: train {len(train_rows)} crops of {sorted(a.train_objs)}; reference bank {len(ref_rows)} "
+            f"crops of all objects", flush=True)
+    if not a.eval_only:
+      np.save(os.path.join(a.out, "val_rows.npy"), val_rows)
     val_obs = np.sort(ev.choice(val_rows, min(a.ceil_n, len(val_rows)), replace=False))
   test_obs = {s: np.sort(ev.choice(len(d.obj), min(a.ceil_n, len(d.obj)), replace=False)) for s, d in tests.items()}
+  tag = ""
+  if a.train_objs:  # same observations (and candidate sets) for any model given the same --train_objs
+    assert not a.val_split, "held-out objects: train-split validation only"
+    tag, ho, sub = "heldout_", np.random.default_rng(98), {}
+    for s, d in tests.items():
+      m = np.isin(d.obj, a.train_objs)
+      for name, r in [("seen", np.nonzero(m)[0]), ("unseen", np.nonzero(~m)[0])]:
+        sub[f"{s}_{name}"] = (d, np.sort(ho.choice(r, min(a.ceil_n, len(r)), replace=False)))
 
   if a.template:  # learned-template baseline on identical candidates (no reference)
     ta = json.load(open(os.path.join(a.template, "args.json")))
@@ -324,6 +342,7 @@ def main():
     return
 
   bank = TlessBank(train, train_rows, syms, a.lam, a.max_sym)
+  ref_bank = TlessBank(train, ref_rows, syms, a.lam, a.max_sym) if a.train_objs else bank
   meta, geo_fn = {}, None
   if a.geo:  # crop meta from the box only (sp_geometry.crop_meta), row-aligned with the token caches
     from liepose.exp.jepa_probe.sp_geometry import SpeedPlusGeometry, crop_meta
@@ -389,14 +408,17 @@ def main():
   params = flax.serialization.from_bytes(params, open(os.path.join(a.out, "params.msgpack"), "rb").read())
   E = ret_energies(model, params, ceil_val, train, val, *mk(vname))
   res = {"val": ceil_val.summary(E)}
-  save_energies(a.out, "val", ceil_val, E)
-  for k, s in enumerate(a.test_splits):
-    c = Ceiling(tests[s], test_obs[s], syms, bank, a, 8 + k)
-    E = ret_energies(model, params, c, train, tests[s], *mk(s))
-    res[s] = c.summary(E)
-    save_energies(a.out, s, c, E)
+  save_energies(a.out, tag + "val", ceil_val, E)
+  evals = [(s, tests[s], test_obs[s], 8 + k) for k, s in enumerate(a.test_splits)]
+  if a.train_objs:
+    evals = [(name, d, rows, 50 + k) for k, (name, (d, rows)) in enumerate(sub.items())]
+  for name, d, rows, seed in evals:
+    c = Ceiling(d, rows, syms, ref_bank, a, seed)
+    E = ret_energies(model, params, c, train, d, *mk(name.split("_")[0]))
+    res[name] = c.summary(E)
+    save_energies(a.out, tag + name, c, E)
   print("final", json.dumps(res), flush=True)
-  json.dump(res, open(os.path.join(a.out, "ceiling_eval.json" if a.eval_only else "ceiling.json"), "w"), indent=2)
+  json.dump(res, open(os.path.join(a.out, f"ceiling_{tag}eval.json" if a.eval_only else f"ceiling_{tag}".rstrip("_") + ".json"), "w"), indent=2)
 
 
 if __name__ == "__main__":
