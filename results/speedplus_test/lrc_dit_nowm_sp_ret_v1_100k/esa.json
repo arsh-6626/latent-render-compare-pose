@@ -1,0 +1,24 @@
+{
+  "exp": "/media/kavinder/hdd2/liepose_data/logs/experiments/speedplus-lrc/train_steps=100000+seed=42+den_mode=dit_nowm+wm=sp_ret_v1",
+  "step": 100000,
+  "lightbox": {
+    "score": 0.7818722841312548,
+    "score_ori": 0.7194577094330955,
+    "score_pos": 0.062414574698159336,
+    "e_q_deg_mean": 41.22189028866588,
+    "e_q_deg_median": 9.43148791714233,
+    "e_t_m_mean": 0.3594270662428994,
+    "e_t_m_median": 0.2230270997744454,
+    "n": 6740
+  },
+  "sunlamp": {
+    "score": 0.7115772811688699,
+    "score_ori": 0.665019918553722,
+    "score_pos": 0.04655736261514784,
+    "e_q_deg_mean": 38.10283462526201,
+    "e_q_deg_median": 10.044100551940714,
+    "e_t_m_mean": 0.27476800797005874,
+    "e_t_m_median": 0.19817509636977051,
+    "n": 2791
+  }
+}
