@@ -161,7 +161,7 @@ class Evaluator(BaseEvaluator):
 
     # run evaluation scripts
     evaluation_result = bop_evaluate(
-      renderer_type="cpp",
+      renderer_type=os.environ.get("BOP_RENDERER", "cpp"),  # VSD depth renderer backend (vispy: no bop_renderer)
       result_filenames=os.path.abspath(self._csv_path),
       results_path="",
       dataset=self.dataset_type,
