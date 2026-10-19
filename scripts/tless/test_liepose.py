@@ -27,17 +27,20 @@ def main():
   p.add_argument("--exp", required=True)
   p.add_argument("--step", type=int, required=True)
   p.add_argument("--out", required=True)
+  p.add_argument("--no_ema", action="store_true", help="sample with the live weights instead of the EMA weights")
   a = p.parse_args()
   os.makedirs(a.out, exist_ok=True)
   cfg = Options(OmegaConf.to_container(OmegaConf.load(os.path.join(a.exp, "configs.yaml")), resolve=True))
   cfg.restore_path, cfg.restore_step, cfg.skip_train = None, a.step, True
   cfg.full_eval = True
+  if a.no_ema:
+    cfg.ema_enabled = False  # the EMA weights of our HPC checkpoint score far worse on the training loss
   tb = TestbedSE3(cfg, a.exp, setup=True)
   assert int(tb.state.step) == a.step, (int(tb.state.step), a.step)
   print(f"restored step {int(tb.state.step)}", flush=True)
   tb.run_test(Options(SAMPLE), a.out)
   tb.run_eval(Options(SAMPLE), a.out)
-  json.dump({"exp": a.exp, "step": a.step, "sample": SAMPLE, "renderer": os.environ.get("BOP_RENDERER", "cpp")},
+  json.dump({"exp": a.exp, "step": a.step, "sample": SAMPLE, "renderer": os.environ.get("BOP_RENDERER", "cpp"), "ema": not a.no_ema},
             open(os.path.join(a.out, "run.json"), "w"), indent=2)
 
 
