@@ -26,6 +26,7 @@ if ! cp -rL $P/data/tless_tokens $T/data/; then  # local disk too small: hold it
 fi
 du -sh $T/data/tless_tokens
 export DATADIR=$T/data
+export PATH=$P/env/liepose/bin:$PATH  # bop_toolkit error scripts run as `python` subprocesses
 export PYTHONPATH=$P/code_lrc/src:$P/code/lib/bop_toolkit
 export TORCH_HOME=$W/torch_home XDG_CACHE_HOME=$W/xdg_cache CACHE_ROOT_PATH=$W/bop_cache
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy
