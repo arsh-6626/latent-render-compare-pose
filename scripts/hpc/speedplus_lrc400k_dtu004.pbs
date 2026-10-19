@@ -1,0 +1,38 @@
+#!/bin/bash
+# SPEED+ latent render-and-compare denoiser at LiePose's training budget (400k steps, batch 64), dtu004 account.
+# n_slices 64 (LiePose: 256). Reads env / data / code from dtu001's project dir; writes to dtu004 scratch.
+# Re-submitting resumes from the latest checkpoint.
+#   qsub -N sp400-geo  -v MODE=dit,WM=sp_geo_v1      speedplus_lrc400k_dtu004.pbs
+#   qsub -N sp400-nowm -v MODE=dit_nowm,WM=sp_ret_v1 speedplus_lrc400k_dtu004.pbs   (control, as at 100k)
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=64gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu004.visitor/lrc/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+W=/scratch/hpc/visitor/dtu004.visitor/lrc
+cd $P/code_lrc
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+
+T=${TMPDIR:-/tmp}/lrc_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+df -h $T | tail -1
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/speedplus_tokens
+if ! cp -rL $P/data/speedplus_tokens $T/data/; then
+  rm -rf $T/data/speedplus_tokens; mkdir -p /dev/shm/lrc_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/lrc_${PBS_JOBID%%.*}" EXIT
+  cp -rL $P/data/speedplus_tokens /dev/shm/lrc_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/lrc_${PBS_JOBID%%.*}/speedplus_tokens $T/data/
+fi
+du -sh $T/data/speedplus_tokens
+export DATADIR=$T/data
+export PYTHONPATH=$P/code_lrc/src
+export TORCH_HOME=$W/torch_home XDG_CACHE_HOME=$W/xdg_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+mkdir -p $W/experiments/speedplus-lrc
+
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.sp_dit --root_path $W/experiments/speedplus-lrc "den_mode=[$MODE]" \
+  "wm_dir=[$P/data/probe/$WM]" "train_steps=[400000]" "batch_size=[64]" "n_slices=[64]" "num_workers=[8]" \
+  >> $W/logs/speedplus_lrc400k_${MODE}_${WM}.log 2>&1
+echo "SPEEDPLUS_LRC400K_DONE $?"
