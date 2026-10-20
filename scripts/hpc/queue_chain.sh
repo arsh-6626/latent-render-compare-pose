@@ -17,7 +17,6 @@ A1=(
 )
 A4=(
 "sp400-geo|speedplus_lrc400k_dtu004.pbs|MODE=dit,WM=sp_geo_v1|$W/experiments/speedplus-lrc/train_steps=400000+seed=42+den_mode=dit+wm=sp_geo_v1/ckpt/checkpoint_400000|$P/data/speedplus_tokens/.upload_complete"
-"sp400-nowm|speedplus_lrc400k_dtu004.pbs|MODE=dit_nowm,WM=sp_ret_v1|$W/experiments/speedplus-lrc/train_steps=400000+seed=42+den_mode=dit_nowm+wm=sp_ret_v1/ckpt/checkpoint_400000|$P/data/speedplus_tokens/.upload_complete"
 )
 h1() { timeout 120 ssh -o BatchMode=yes iitd-hpc08 "$1"; }
 h4() { timeout 150 ssh -o BatchMode=yes yashdeep@10.141.90.34 "ssh -o BatchMode=yes iitd-hpc $(printf %q "$1")"; }
