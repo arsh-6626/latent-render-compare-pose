@@ -1,0 +1,41 @@
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Instance-level 6D pose estimation.}
+Methods for known objects either regress the pose directly~\cite{xiang2018posecnn,wang2021gdrnet,liu2025gdrnpp}, or predict 2D--3D
+correspondences and solve PnP~\cite{li2019cdpn,hodan2020epos,haugaard2022surfemb,su2022zebrapose,chen2022epropnp}, or compare the image
+with templates or codebooks of rendered views~\cite{sundermeyer2018aae,nguyen2022templates,nguyen2024gigapose}. Symmetric objects make
+the image-to-pose map one-to-many; most methods handle this with symmetry-aware losses that need symmetry
+annotations~\cite{wang2021gdrnet,liu2025gdrnpp}. Our world model uses training views as references, as template methods do, but
+predicts features at a continuous pose instead of matching against a fixed set of templates.
+
+\paragraph{Render-and-compare refinement.}
+DeepIM~\cite{li2018deepim} iteratively predicts a pose update from an observed and a rendered image; CosyPose~\cite{labbe2020cosypose},
+MegaPose~\cite{labbe2022megapose} and FoundationPose~\cite{wen2024foundationpose} scale this to many objects and to novel objects.
+RePOSE~\cite{iwase2021repose} renders learned deep textures instead of RGB, and PixLoc~\cite{sarlin2021pixloc} aligns learned
+feature maps for camera localisation. These methods compare in image or feature space, but they all need a renderer and a 3D model at
+test time and act as a refinement stage on a given initial pose. \method needs neither: the ``rendering'' is a prediction of frozen
+DINOv2 tokens from a real training view, and the comparison happens inside every step of a generative sampler, for every sample.
+
+\paragraph{Diffusion and distributions on rotations and poses.}
+Distributions over rotations have been modelled with implicit densities~\cite{murphy2021ipdf}, normalising flows and
+mixtures; diffusion models on SO(3)~\cite{leach2022so3diffusion} and SE(3)~\cite{yim2023se3diffusion,urain2023se3dif} were
+introduced for protein structure, grasping and alignment. LiePose~\cite{hsiao2024liepose} applies score-based diffusion on SE(3) to
+object pose from images, with a surrogate Stein score and a ResNet image encoder. We keep LiePose's diffusion formulation and change
+what the denoiser sees: in addition to observation features, it sees the predicted appearance at its own current hypothesis.
+Classifier guidance~\cite{dhariwal2021diffusion} steers a sampler with the gradient of an external model; our world model enters
+as an input to the denoiser instead, and is used as an energy only to rank finished samples.
+
+\paragraph{World models on pretrained features.}
+Joint-embedding predictive architectures learn by predicting representations rather than pixels~\cite{assran2023ijepa,bardes2024vjepa}.
+DINO-WM~\cite{zhou2025dinowm} trains an action-conditioned predictor on frozen DINOv2 patch features and plans by optimising actions
+so that predicted features match a goal. We use the same principle with the object pose as the ``action'': the predictor maps a
+reference view's tokens and a relative pose to the tokens at the target pose, and the denoiser uses the prediction to reason about
+its hypothesis.
+
+\paragraph{Spacecraft pose estimation.}
+SPEED~\cite{kisantal2020spec2019} and SPEED+~\cite{park2022speedplus} benchmark the pose of a known spacecraft, with SPEED+ testing on
+hardware-in-the-loop images (lightbox, sunlamp) after training on synthetic renders only. Leading methods regress keypoint heatmaps and
+solve PnP~\cite{chen2019satellite}, often with domain randomisation, style augmentation or adaptation on the unlabeled test
+domains~\cite{park2022speedplus,park2024spnv2,park2023spec2021}. The spacecraft has near-symmetric configurations that produce
+flipped estimates, which makes it a natural test of a sampler that can represent and resolve ambiguity.

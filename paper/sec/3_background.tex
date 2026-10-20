@@ -1,0 +1,22 @@
+\section{Background: SE(3) Diffusion for Object Pose}
+\label{sec:background}
+
+\paragraph{Pose parametrisation.}
+Following LiePose~\cite{hsiao2024liepose} and GDR-Net~\cite{wang2021gdrnet}, a pose is expressed relative to an image crop $I$ of the
+object: the rotation is allocentric~\cite{kundu2018rcnn3d}, \ie it removes the rotation induced by the object's position in the image,
+and the translation is scale-invariant~\cite{li2019cdpn}, $t=(\delta_x/w,\ \delta_y/h,\ z/r)$, with $(\delta_x,\delta_y)$ the offset of
+the projected object centre from the crop centre, $(w,h)$ the box size and $r$ the crop's zoom ratio. We write $g=(R,t)\in\SE$ for this
+crop-relative pose; it maps to the camera frame given only the crop box.
+
+\paragraph{Diffusion on SE(3).}
+LiePose defines a forward process that perturbs a clean pose $g_0$ by Gaussian noise in the Lie algebra,
+$g_t = g_0\,\mathrm{Exp}(\sigma_t\epsilon)$, $\epsilon\sim\mathcal{N}(0,I_6)$, with a linear schedule $\sigma_t$ over $T=100$ steps.
+A network $\epsilon_\theta(g_t,t,I)$ is trained to predict the noise, and sampling starts from a uniform pose and applies $T$
+DDIM-style~\cite{song2021ddim} updates on the group. Each training image is perturbed into many noisy poses (``slices'') per step.
+In LiePose, $\epsilon_\theta$ is a ResNet-34 image encoder followed by Fourier-feature MLP blocks that take the noisy pose and the
+time step.
+
+\paragraph{What the denoiser does not see.}
+$\epsilon_\theta$ receives the image once, as a feature vector, and the hypothesis $g_t$ as a vector. Whether the object would look like
+$I$ at $g_t$ is never computed explicitly; the network must learn it implicitly for every pose in SE(3). The rest of this paper replaces
+this implicit reasoning with an explicit prediction of the appearance at $g_t$.

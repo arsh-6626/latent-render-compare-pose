@@ -1,0 +1,50 @@
+\section{Introduction}
+\label{sec:intro}
+
+Estimating the 6D pose of a known object from a single RGB image is ambiguous whenever the visible part of the object looks the same
+from several viewpoints: because of symmetry, because the distinguishing features are occluded, or because a texture-less object
+offers little to disambiguate~\cite{hodan2017tless,hodan2020epos,murphy2021ipdf}. Treating the pose as a distribution rather than a
+single value handles this ambiguity, and diffusion models on SE(3) have become an effective way to represent such distributions.
+LiePose~\cite{hsiao2024liepose} samples poses with a score-based diffusion process on SE(3) and reaches high accuracy on T-LESS
+without symmetry annotations.
+
+A diffusion denoiser, however, is an open-loop function. At each step it maps image features and the current noisy pose to a
+correction, and it never checks whether the current hypothesis is consistent with the image. The check is the core of
+render-and-compare refinement~\cite{li2018deepim,labbe2020cosypose,labbe2022megapose,wen2024foundationpose}: render the object at the
+hypothesis, compare the rendering with the observation, update. Render-and-compare has been the most accurate final stage in BOP for
+years~\cite{hodan2020bop,sundermeyer2023bop22}, but it requires a renderer and a textured 3D model, it runs as a separate refiner after
+an initial estimate, and it does not by itself represent a multi-modal distribution.
+
+We ask whether the comparison can be moved into the diffusion process, in a learned feature space, so that every denoising step of
+every sample is conditioned on how well its hypothesis explains the image. This needs a model that answers the question ``what would
+the image features be if the object were at pose $g$?'' for arbitrary $g$, cheaply enough to be queried at every step. We build such a
+model as a world model in the sense of predictive latent models~\cite{assran2023ijepa,bardes2024vjepa,zhou2025dinowm}: it operates on
+frozen DINOv2~\cite{oquab2024dinov2} patch tokens, and predicts the tokens at a target pose from the tokens of a reference view and the
+relative pose between them. The reference is the nearest training view to the hypothesis, retrieved by pose, so the world model
+interpolates between nearby views instead of imagining the object from scratch. It is trained once per dataset with a pose-contrastive
+objective and then frozen.
+
+Our method, \method (Latent Render-and-Compare), inserts this world model into LiePose's sampler (\cref{fig:teaser}). At every step,
+each sample retrieves a reference at its current pose, the world model predicts the tokens at that pose in the observation's crop, and
+a token transformer receives the observed tokens, the predicted tokens and their difference, conditioned on the noise level and the
+pose. The same predicted tokens define an energy, the foreground-weighted distance to the observation, which ranks a set of samples
+at test time without ground truth. We keep LiePose's forward process, noise schedule, loss and sampler, and we compare against a
+control that is identical except that the predicted tokens are set to zero, so that the contribution of the comparison is measured in
+isolation.
+
+We evaluate on four benchmarks with different sources of ambiguity: T-LESS~\cite{hodan2017tless} and
+YCB-V~\cite{xiang2018posecnn} under the BOP protocol~\cite{hodan2018bop}, the SPEED+ spacecraft benchmark~\cite{park2022speedplus}
+with the official SPEC2021 score, and SYMSOL-T~\cite{hsiao2024liepose}. All our models, the control and LiePose are trained with the
+same number of training images. \TODO{summarise the main findings in one paragraph once Tabs.~\ref{tab:bop}--\ref{tab:symsolt} are
+filled; no claim before the numbers exist.}
+
+\noindent Our contributions are:
+\begin{itemize}
+\item A feature-space world model for object pose: it predicts DINOv2 patch tokens at an arbitrary pose from a retrieved
+reference view, with optional geometry tokens that make small pose changes explicit as image displacements
+(\cref{sec:wm}).
+\item \method, an SE(3) diffusion model whose every denoising step compares the world model's prediction at the current hypothesis
+with the observation, together with an energy for selecting among samples without ground truth (\cref{sec:den,sec:select}).
+\item A controlled evaluation on four benchmarks against LiePose at a matched training budget and a no-world-model control, with
+analyses of when the comparison helps during sampling and what the world model can and cannot discriminate (\cref{sec:exp}).
+\end{itemize}

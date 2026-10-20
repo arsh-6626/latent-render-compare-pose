@@ -1,0 +1,14 @@
+\begin{abstract}
+Diffusion models on SE(3) handle the pose ambiguity of symmetric and occluded objects by sampling, but each denoising step is a
+feed-forward function of image features and the noisy pose: the network never checks whether its current hypothesis explains the
+image. Render-and-compare refiners do perform this check, but they require a renderer and a textured 3D model, and run as a separate
+stage after an initial estimate. We bring the comparison into the diffusion process itself, in a learned feature space. A frozen
+world model, trained on DINOv2 patch tokens, predicts the tokens of the object at any pose hypothesis from the nearest training view
+and the relative pose between them. At every denoising step and for every sample, the denoiser receives the observed tokens, the
+tokens predicted at its current hypothesis, and their difference. The same prediction defines an energy that ranks complete samples
+at test time without ground truth. The world model is trained once per dataset with a pose-contrastive objective and is never
+updated by the denoiser; LiePose's forward process, loss and sampler are kept unchanged, so the effect of the comparison can be
+isolated with a control that removes only the predicted tokens. We evaluate on T-LESS and YCB-V under the BOP protocol, on the
+SPEED+ spacecraft benchmark with its official score, and on SYMSOL-T, against LiePose trained with the same budget.
+\TODO{one sentence of results, written only after the tables are filled.}
+\end{abstract}
