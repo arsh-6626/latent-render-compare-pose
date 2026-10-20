@@ -27,7 +27,7 @@ if ! cp -rL $P/data/speedplus_tokens $T/data/; then
 fi
 du -sh $T/data/speedplus_tokens
 export DATADIR=$T/data
-export PYTHONPATH=$P/code_lrc/src
+export PYTHONPATH=$P/code_lrc/src:$P/code/lib/bop_toolkit
 export TORCH_HOME=$W/torch_home XDG_CACHE_HOME=$W/xdg_cache
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
 mkdir -p $W/experiments/speedplus-lrc
