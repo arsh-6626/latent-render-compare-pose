@@ -127,9 +127,12 @@ instances per dataset.}
 
 \paragraph{SPEED+.}
 Estimates are converted from LiePose's crop-relative parametrisation to the camera frame with the estimated translation and the crop
-box. For each image, $e_q=2\arccos|\langle q,\hat q\rangle|$, $e_t=\|t-\hat t\|$, and the pose score is $e_q^{\mathrm{rad}}+e_t/\|t\|$, set to
-zero when $e_q<0.169^\circ$ and $e_t/\|t\|<2.173$\,mm/m, the SPEC2021 thresholds~\cite{park2022speedplus}. Scores are averaged over all
-images of the lightbox and sunlamp sets.
+box. For each image, $e_q=2\arccos|\langle q,\hat q\rangle|$ and $e_t=\|t-\hat t\|$. The score is $S_q+S_t$ with
+$S_q=e_q^{\mathrm{rad}}$ set to zero when $e_q<0.169^\circ$ and $S_t=e_t/\|t\|$ set to zero when $e_t/\|t\|<2.173$\,mm/m, using the
+SPEC2021 thresholds~\cite{park2022speedplus}; each component is thresholded on its own, and the reported score, rotation part and
+translation part are means over all images of the lightbox and sunlamp sets. The SPEED+ paper~\cite{park2022speedplus} states the
+thresholds as zeroing the pose score only when both components are below them. \TODO{check which rule the official SPEC2021 scoring
+code applies and use it for all rows; the two rules differ only for images with one component below its threshold.}
 
 \paragraph{SYMSOL-T.}
 For each shape we report the mean over test images of the minimum rotation angle to the set of symmetric ground-truth rotations and of
@@ -198,7 +201,9 @@ selected model changes, and replace this paragraph with the clean procedure. If 
 
 \paragraph{Deviations from LiePose's setup.}
 64 instead of 256 noisy poses per training image for the control and \method; batch 64 for our T-LESS reproduction of LiePose
-(paper: 32); weights chosen by training loss (\cref{sec:supp-repro}); VSD rendered with the Python renderer.
+(paper: 32); weights chosen by training loss (\cref{sec:supp-repro}); VSD rendered with the Python renderer. The control and
+\method train on a fixed set of pre-augmented crops whose tokens are cached (180,224 crops on T-LESS, two augmented copies of each
+synthetic image on SPEED+), whereas LiePose draws a new augmentation every time an image is used.
 
 % ==============================================================================================================================
 \section{Additional results}

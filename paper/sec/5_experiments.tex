@@ -17,13 +17,14 @@ and translations; LiePose's training and test splits.
 On T-LESS and YCB-V we report the BOP average recalls of VSD, MSSD and MSPD and their mean AR~\cite{hodan2020bop}, computed with the
 BOP toolkit; VSD uses the toolkit's Python renderer (\cref{sec:supp-protocol}). On SPEED+ we report the mean translation error
 $e_t$ (m), the mean rotation error $e_q=2\arccos|\langle q,\hat q\rangle|$ (deg), and the official SPEC2021 score
-$S=\tfrac{1}{n}\sum(e_q^{\mathrm{rad}}+e_t/\|t\|)$ with the competition's precision thresholds~\cite{park2022speedplus}, on the full test
-sets. On SYMSOL-T we report the mean symmetric rotation error (deg) and mean translation error per shape, as in LiePose.
+$S=\tfrac{1}{n}\sum(e_q^{\mathrm{rad}}+e_t/\|t\|)$ with the competition's precision thresholds~\cite{park2022speedplus}
+(\cref{sec:supp-protocol}), on the full test sets. On SYMSOL-T we report the mean symmetric rotation error (deg) and mean translation error per shape, as in LiePose.
 
 \paragraph{Baselines and training budget.}
 The main baseline is LiePose~\cite{hsiao2024liepose}, which we retrain on every benchmark with its public code. All models we train
-see the same number of training images as LiePose: 400k steps with batch 64 on T-LESS, YCB-V and SPEED+, and 400k steps with batch 32
-on SYMSOL-T (LiePose: 800k steps with batch 16). Because every noisy pose of \method queries the world model, we use 64 noisy poses per
+see the same number of training images as our LiePose runs: 400k steps with batch 64 on T-LESS, YCB-V and SPEED+, and 400k steps with
+batch 32 on SYMSOL-T (LiePose: 800k steps with batch 16). Our T-LESS LiePose run uses batch 64 where the paper uses 32, and the
+control and \method draw from a fixed set of pre-augmented crops (\cref{sec:supp-disclose}). Because every noisy pose of \method queries the world model, we use 64 noisy poses per
 image instead of LiePose's 256; the control uses the same 64. We evaluate the final checkpoint of every run; no checkpoint is chosen on
 test data. For each run we sample with the weight average (EMA) or the live weights, whichever has the lower training loss, decided
 before any test evaluation (\cref{sec:supp-repro}). Published numbers of other methods are copied from their papers and marked by
