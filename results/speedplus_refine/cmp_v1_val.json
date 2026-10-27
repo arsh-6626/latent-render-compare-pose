@@ -1,0 +1,52 @@
+{
+ "cmp": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_cmp_v1",
+ "n": 11994,
+ "iters": 4,
+ "from_gt (diagnostic)": {
+  "start_median_deg": 0.0,
+  "final_median_deg": 0.47956711656391426,
+  "final_mean_deg": 0.6206142687597711,
+  "final_gt1": 0.13523428380857094
+ },
+ "from_gt+1-3deg (diagnostic)": {
+  "start_median_deg": 1.988780698111284,
+  "final_median_deg": 1.6300181513899545,
+  "final_mean_deg": 1.7171433192616397,
+  "final_gt1": 0.8498415874603968
+ },
+ "from_gt+3-10deg (diagnostic)": {
+  "start_median_deg": 6.528569141581363,
+  "final_median_deg": 3.6698023794315655,
+  "final_mean_deg": 4.0617249046161135,
+  "final_gt1": 0.9706519926629982
+ },
+ "consensus": {
+  "score": 0.0166304448851032,
+  "score_ori": 0.012457579741899847,
+  "score_pos": 0.004172865143203357,
+  "e_q_deg_mean": 0.7177859235120253,
+  "e_q_deg_median": 0.5649001253299566,
+  "e_t_m_mean": 0.02643450063354939,
+  "e_t_m_median": 0.018226411017929618,
+  "e_q_gt1": 0.16599966649991663,
+  "e_q_gt10": 0.0010005002501250625
+ },
+ "consensus+comparator": {
+  "score": 0.0215066917347406,
+  "score_ori": 0.017367158200236613,
+  "score_pos": 0.004139533534503979,
+  "e_q_deg_mean": 0.9964266067786564,
+  "e_q_deg_median": 0.8012097842763338,
+  "e_t_m_mean": 0.0261839507843751,
+  "e_t_m_median": 0.017978447948564867,
+  "e_q_gt1": 0.3475904618976155,
+  "e_q_gt10": 0.001167250291812573
+ },
+ "gate": {
+  "bias_ok": false,
+  "esa_ok": false,
+  "median_ok": false,
+  "converges_ok": false,
+  "pass": false
+ }
+}
