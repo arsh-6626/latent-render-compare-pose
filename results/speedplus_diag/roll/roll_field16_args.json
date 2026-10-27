@@ -1,0 +1,18 @@
+{
+  "arm": "field",
+  "out": "/media/kavinder/hdd2/liepose_data/logs/probe/roll_field16",
+  "field": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field16_v1",
+  "steps": 30000,
+  "batch_size": 64,
+  "lr": 0.0003,
+  "max_deg": 10.0,
+  "base": 30.0,
+  "n_train": 40000,
+  "n_eval": 600,
+  "iters": 4,
+  "seed": 0,
+  "grid": 16,
+  "tokens": "speedplus_tokens16",
+  "proj": null,
+  "k": 16
+}

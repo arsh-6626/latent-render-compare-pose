@@ -84,7 +84,8 @@ class Comparator(nn.Module):
 def load_field(field_dir):
   fa = SimpleNamespace(**json.load(open(os.path.join(field_dir, "args.json"))))
   model = FieldModel(field=FeatureField(plane_res=fa.plane_res, plane_dim=fa.plane_dim, hid=getattr(fa, "hid", 128), radius=fa.radius,
-                                        n_samp=fa.n_samp, lat_dim=getattr(fa, "lat_dim", 0), geo=SpeedPlusGeometry()))
+                                        n_samp=fa.n_samp, lat_dim=getattr(fa, "lat_dim", 0), sub=2 * getattr(fa, "grid", 8),
+                                        geo=SpeedPlusGeometry()))
   k0 = jnp.zeros((1, 6)).at[:, 0].set(1.0)
   p0 = model.init(jax.random.PRNGKey(0), None, None, None, None, jnp.eye(3)[None], jnp.zeros((1, 3)), k0, jnp.zeros((1, 768)))
   params = flax.serialization.from_bytes(p0, open(os.path.join(field_dir, "params.msgpack"), "rb").read())

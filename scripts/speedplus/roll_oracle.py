@@ -78,6 +78,8 @@ def main():
   p.add_argument("--n_eval", type=int, default=600)
   p.add_argument("--iters", type=int, default=4)
   p.add_argument("--seed", type=int, default=0)
+  p.add_argument("--grid", type=int, default=8, help="token grid (16: unpooled, with --tokens speedplus_tokens16 and a 16x16 field)")
+  p.add_argument("--tokens", default="speedplus_tokens")
   p.add_argument("--proj", default=None, help="renderable_subspace.py npz: compare in the top --k S_e-whitened directions")
   p.add_argument("--k", type=int, default=16)
   a = p.parse_args()
@@ -92,7 +94,8 @@ def main():
     Dz = a.k
   meta_tr, idx_tr, _ = crop_meta(os.path.join(D, "speedplus_crops", "train"))
   meta_va, idx_va, _ = crop_meta(os.path.join(D, "speedplus_crops", "val"))
-  params = cmp.init(jax.random.PRNGKey(a.seed), jnp.zeros((1, 64, Dz)), jnp.zeros((1, 64, Dz)), jnp.zeros((1, 64)), jnp.asarray(meta_tr[:1]))
+  T = a.grid ** 2
+  params = cmp.init(jax.random.PRNGKey(a.seed), jnp.zeros((1, T, Dz)), jnp.zeros((1, T, Dz)), jnp.zeros((1, T)), jnp.asarray(meta_tr[:1]))
   prj = (lambda z: z) if P is None else (lambda z: z @ P)
   sched = optax.warmup_cosine_decay_schedule(0.0, a.lr, 1000, a.steps, a.lr * 0.05)
   tx = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(sched, weight_decay=0.01))
@@ -106,7 +109,7 @@ def main():
     im_va, iv = load_images(D, "val", a.n_eval)
     assert (iv == idx_va[: len(iv)]).all()
     meta_tr, meta_va = meta_tr[: len(im_tr)], meta_va[: len(im_va)]
-    enc = lambda x: pool2(dino.apply(dp, x))
+    enc = (lambda x: pool2(dino.apply(dp, x))) if a.grid == 8 else (lambda x: dino.apply(dp, x))
     rot = jax.vmap(rotate)
 
     def pair(x, theta, k):  # observation at base, rendering at base + theta
@@ -120,8 +123,8 @@ def main():
     n_tr, n_va = len(im_tr), len(im_va)
   else:
     fm, fp = load_field(a.field)
-    tr = TokenSplit(os.path.join(D, "speedplus_tokens"), "train")
-    va = TokenSplit(os.path.join(D, "speedplus_tokens"), "val")
+    tr = TokenSplit(os.path.join(D, a.tokens), "train")
+    va = TokenSplit(os.path.join(D, a.tokens), "val")
 
     def pair(x, theta, k):  # x = (tokens, R, t): the field at the GT pose rolled by theta
       z, R, t = x

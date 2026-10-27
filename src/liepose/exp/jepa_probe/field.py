@@ -162,23 +162,25 @@ def main():
   p.add_argument("--eval_per_bin", type=int, default=6)
   p.add_argument("--eval_every", type=int, default=5000)
   p.add_argument("--seed", type=int, default=0)
+  p.add_argument("--grid", type=int, default=8, help="token grid of the cache (8: 2x2-pooled; 16: speedplus_tokens16)")
+  p.add_argument("--tokens", default="speedplus_tokens")
   a = p.parse_args()
   D = os.environ["DATADIR"]
   os.makedirs(a.out, exist_ok=True)
   json.dump(vars(a), open(os.path.join(a.out, "args.json"), "w"), indent=2)
   prt.T_SCALE = np.ones(3)
-  train = TokenSplit(os.path.join(D, "speedplus_tokens"), "train")
-  val = {s: TokenSplit(os.path.join(D, "speedplus_tokens"), s) for s in ["val", "val_aug"]}
+  train = TokenSplit(os.path.join(D, a.tokens), "train")
+  val = {s: TokenSplit(os.path.join(D, a.tokens), s) for s in ["val", "val_aug"]}
   meta = {}
   for s, d in [("train", train)] + list(val.items()):
     k, idx, ts = crop_meta(os.path.join(D, "speedplus_crops", s))
     assert (idx == d.index).all() and np.abs(ts - d.t).max() < 1e-5, s
     meta[s] = k.astype(np.float32)
   bank = Bank(train, np.arange(len(train.R)), {int(train.obj[0]): np.eye(3)[None]}, 0.0)
-  d_app = app_distance(D)
+  d_app = app_distance(D, a.tokens)
   print(f"appearance distance (val): {d_app:.4f}", flush=True)
   field = FeatureField(plane_res=a.plane_res, plane_dim=a.plane_dim, hid=a.hid, radius=a.radius, n_samp=a.n_samp, lat_dim=a.lat_dim,
-                       geo=SpeedPlusGeometry())
+                       sub=2 * a.grid, geo=SpeedPlusGeometry())
   model = FieldModel(field=field)
   k1 = jnp.asarray(meta["train"][:1])
   params = model.init(jax.random.PRNGKey(a.seed), None, None, None, None, jnp.eye(3)[None], jnp.zeros((1, 3)), k1, jnp.zeros((1, 768)))

@@ -1,0 +1,20 @@
+{
+  "out": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field16_v1",
+  "steps": 40000,
+  "batch_size": 32,
+  "lr": 0.002,
+  "radius": 1.0,
+  "plane_res": 128,
+  "plane_dim": 32,
+  "n_samp": 32,
+  "hid": 128,
+  "lat_dim": 0,
+  "lat_l2": 0.001,
+  "n_ref": 1,
+  "eval_n": 300,
+  "eval_per_bin": 6,
+  "eval_every": 10000,
+  "seed": 0,
+  "grid": 16,
+  "tokens": "speedplus_tokens16"
+}

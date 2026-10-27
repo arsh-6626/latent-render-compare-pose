@@ -123,9 +123,9 @@ class Eval:
     return res
 
 
-def app_distance(D):
+def app_distance(D, tok="speedplus_tokens"):
   """median clean-vs-augmented token distance on the val crops that were augmented (val_aug)"""
-  v, va = TokenSplit(os.path.join(D, "speedplus_tokens"), "val"), TokenSplit(os.path.join(D, "speedplus_tokens"), "val_aug")
+  v, va = TokenSplit(os.path.join(D, tok), "val"), TokenSplit(os.path.join(D, tok), "val_aug")
   shards = [np.load(f) for f in sorted(glob.glob(os.path.join(D, "speedplus_crops", "val_aug", "shard_*.npz")))]
   if "color_aug" in shards[0].files:
     on, idx = np.concatenate([x["color_aug"] for x in shards]), np.concatenate([x["index"] for x in shards])
