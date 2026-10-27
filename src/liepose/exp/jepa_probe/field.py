@@ -97,7 +97,7 @@ class FeatureField(nn.Module):
     inside = (jnp.abs(x) <= 1.0).all(-1)
     return jnp.where(inside, nn.softplus(self.sigma(h)[..., 0] - 1.0), 0.0), h
 
-  def __call__(self, Rg, tg, kg, app, jitter=None, with_opacity=False, lat=None):
+  def __call__(self, Rg, tg, kg, app, jitter=None, with_opacity=False, lat=None, with_latent=False):
     """candidate poses (N, 3, 3) allocentric / (N, 3) translation_scaled, crop meta (N, 6), appearance statistics
     (N, 2D) -> predicted tokens (N, 64, out_dim); jitter (N, rays, n_samp) in [0, 1): stratified depth samples"""
     geo, S, M = self.geo, self.sub, self.n_samp
@@ -131,6 +131,8 @@ class FeatureField(nn.Module):
     f = (1.0 - bgw) * self.out(y) + bgw * self.bg(a)
     N, D = f.shape[0], f.shape[-1]
     pool = lambda x: x.reshape(N, S // 2, 2, S // 2, 2, x.shape[-1]).mean((2, 4)).reshape(N, (S // 2) ** 2, x.shape[-1])
+    if with_latent:  # + the field's own latent of the surface each ray hits (pooled to tokens; geometry only, not decoded)
+      return pool(f), pool(opa)[..., 0], pool(h_ray)
     if with_opacity:  # (tokens, per-token rendered opacity (N, 64))
       return pool(f), pool(opa)[..., 0]
     return pool(f)
@@ -140,8 +142,8 @@ class FieldModel(nn.Module):
   """wm_eval.Eval's model signature (zr, Rr, tr, kr, Rg, tg, kg, app); the references are ignored"""
   field: Any = None
 
-  def __call__(self, zr, Rr, tr, kr, Rg, tg, kg, app, jitter=None, with_opacity=False, lat=None):
-    return self.field(Rg, tg, kg, app, jitter, with_opacity, lat)
+  def __call__(self, zr, Rr, tr, kr, Rg, tg, kg, app, jitter=None, with_opacity=False, lat=None, with_latent=False):
+    return self.field(Rg, tg, kg, app, jitter, with_opacity, lat, with_latent)
 
 
 def main():

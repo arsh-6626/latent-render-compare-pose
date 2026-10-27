@@ -1,0 +1,24 @@
+#!/bin/bash
+# SPEED+ diffusion with the feature-field world model (liepose.exp.cmp.sp_field_dit), 100k steps, dtu004 account;
+# code from $P/code_larp. Token cache staged on node-local disk. Re-submitting resumes from the latest checkpoint.
+#   qsub -N fd-full -v MODE=field_full field_dit_dtu004.pbs      qsub -N fd-nowm -v MODE=field_nowm field_dit_dtu004.pbs
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=8:ngpus=1:mem=64gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu004.visitor/larp/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+W=/scratch/hpc/visitor/dtu004.visitor/larp; mkdir -p $W/logs $W/experiments
+cd $P/code_larp
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+T=${TMPDIR:-/tmp}/fd_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/speedplus_tokens; cp -rL $P/data/speedplus_tokens $T/data/ || exit 1
+export DATADIR=$T/data SPEEDPLUS_ROOT=$P/data/speedplusv2
+export PYTHONPATH=$P/code_larp/src:$P/code_larp/lib/bop_toolkit XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.sp_field_dit --root_path $W/experiments/speedplus-field "den_mode=[$MODE]" \
+  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[100000]" >> $W/logs/fd_${MODE}.log 2>&1
+echo "FIELD_DIT_DONE $?"
