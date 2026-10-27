@@ -62,13 +62,14 @@ def main():
   p.add_argument("--cem_rot_deg", type=float, default=3.0)
   p.add_argument("--cem_t", type=float, default=0.02)
   p.add_argument("--limit", type=int, default=0)
+  p.add_argument("--cem_chunk", type=int, default=16, help="observations per CEM energy call (x cem_pop renders)")
   a = p.parse_args()
   D = os.environ["DATADIR"]
   fa = SimpleNamespace(**json.load(open(os.path.join(a.field, "args.json"))))
   field = FeatureField(plane_res=fa.plane_res, plane_dim=fa.plane_dim, hid=getattr(fa, "hid", 128), radius=fa.radius, n_samp=fa.n_samp,
-                       geo=SpeedPlusGeometry())
+                       sub=2 * getattr(fa, "grid", 8), geo=SpeedPlusGeometry())
   model = FieldModel(field=field)
-  obs = TokenSplit(os.path.join(D, "speedplus_tokens"), "val")
+  obs = TokenSplit(os.path.join(D, getattr(fa, "tokens", "speedplus_tokens")), "val")  # the field's own token space
   meta, idx, ts = crop_meta(os.path.join(D, "speedplus_crops", "val"))
   assert (idx == obs.index).all()
   p0 = model.init(jax.random.PRNGKey(0), None, None, None, None, jnp.eye(3)[None], jnp.zeros((1, 3)), jnp.asarray(meta[:1]), jnp.zeros((1, 768)))
@@ -110,7 +111,8 @@ def main():
       w, dt = w.at[:, 0].set(mu_w), dt.at[:, 0].set(mu_t)  # keep the current mean in the population
       Rc = expm(w.reshape(-1, 3)).reshape(N, a.cem_pop, 3, 3) @ R[:, None]
       tt = t[:, None] + dt
-      E = jnp.concatenate([energy(Rc[i:i + 16], tt[i:i + 16], k[i:i + 16], z[i:i + 16]) for i in range(0, N, 16)])
+      c = a.cem_chunk
+      E = jnp.concatenate([energy(Rc[i:i + c], tt[i:i + c], k[i:i + c], z[i:i + c]) for i in range(0, N, c)])
       el = jnp.argsort(E, 1)[:, : a.cem_elite]
       we, te = jnp.take_along_axis(w, el[..., None], 1), jnp.take_along_axis(dt, el[..., None], 1)
       mu_w, mu_t, sd_w, sd_t = we.mean(1), te.mean(1), we.std(1) + 1e-4, te.std(1) + 1e-5
