@@ -80,6 +80,7 @@ def main():
   p.add_argument("--seed", type=int, default=0)
   p.add_argument("--grid", type=int, default=8, help="token grid (16: unpooled, with --tokens speedplus_tokens16 and a 16x16 field)")
   p.add_argument("--tokens", default="speedplus_tokens")
+  p.add_argument("--ffield", default=None, help="feat_field.py run: compare in its learned space (H on both sides; the field arm renders it)")
   p.add_argument("--proj", default=None, help="renderable_subspace.py npz: compare in the top --k S_e-whitened directions")
   p.add_argument("--k", type=int, default=16)
   a = p.parse_args()
@@ -97,10 +98,18 @@ def main():
   T = a.grid ** 2
   params = cmp.init(jax.random.PRNGKey(a.seed), jnp.zeros((1, T, Dz)), jnp.zeros((1, T, Dz)), jnp.zeros((1, T)), jnp.asarray(meta_tr[:1]))
   prj = (lambda z: z) if P is None else (lambda z: z @ P)
+  if a.ffield:  # learned 3D-consistent space: H(z) for observations and oracle renders, the feat field renders it
+    from liepose.exp.jepa_probe.feat_field import FeatField
+    from liepose.exp.jepa_probe.feat_field import load as load_ff
+    ffm, ffp = load_ff(a.ffield, jnp.asarray(meta_tr[:1]))
+    prj = lambda z: ffm.apply(ffp, z, method=FeatField.encode)
+    Dz = json.load(open(os.path.join(a.ffield, "args.json")))["feat_dim"]
+    params = cmp.init(jax.random.PRNGKey(a.seed), jnp.zeros((1, T, Dz)), jnp.zeros((1, T, Dz)), jnp.zeros((1, T)), jnp.asarray(meta_tr[:1]))
   sched = optax.warmup_cosine_decay_schedule(0.0, a.lr, 1000, a.steps, a.lr * 0.05)
   tx = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(sched, weight_decay=0.01))
   opt_state = tx.init(params)
 
+  hat_in_f = bool(a.ffield) and a.arm == "field"  # the feat field already renders the learned space
   if a.arm == "oracle":
     dino = DinoV2()
     dp = flax.serialization.msgpack_restore(open(os.path.join(D, "dinov2_vits14_224.msgpack"), "rb").read())
@@ -122,12 +131,16 @@ def main():
       return jnp.asarray(im[b], jnp.float32), jnp.asarray(mt[b])
     n_tr, n_va = len(im_tr), len(im_va)
   else:
-    fm, fp = load_field(a.field)
+    if not a.ffield:
+      fm, fp = load_field(a.field)
     tr = TokenSplit(os.path.join(D, a.tokens), "train")
     va = TokenSplit(os.path.join(D, a.tokens), "val")
 
     def pair(x, theta, k):  # x = (tokens, R, t): the field at the GT pose rolled by theta
       z, R, t = x
+      if a.ffield:  # the feat field renders H's space; returned raw-space z is mapped by prj, the render by identity
+        f_hat, opa = ffm.apply(ffp, rz(theta) @ R, t, k, z, with_opacity=True, method=FeatField.render)
+        return z, f_hat, opa
       z_hat, opa = fm.apply(fp, None, None, None, None, rz(theta) @ R, t, k, app_stats(z), with_opacity=True)
       return z, z_hat, opa
 
@@ -140,7 +153,7 @@ def main():
   def step(params, opt_state, key, x, k):
     theta = jax.random.uniform(key, (k.shape[0],), minval=-a.max_deg, maxval=a.max_deg)
     z_obs, z_hat, opa = jax.lax.stop_gradient(pair(x, theta, k))
-    z_obs, z_hat = prj(z_obs), prj(z_hat)
+    z_obs, z_hat = prj(z_obs), (z_hat if hat_in_f else prj(z_hat))
 
     def loss_fn(params):
       out = cmp.apply(params, z_obs, z_hat, opa, k)[:, 0]
@@ -153,7 +166,7 @@ def main():
   @jax.jit
   def predict(params, x, theta, k):
     z_obs, z_hat, opa = pair(x, theta, k)
-    return cmp.apply(params, prj(z_obs), prj(z_hat), opa, k)[:, 0]
+    return cmp.apply(params, prj(z_obs), z_hat if hat_in_f else prj(z_hat), opa, k)[:, 0]
 
   logf = open(os.path.join(a.out, "log.jsonl"), "a")
   rng = np.random.default_rng(a.seed)

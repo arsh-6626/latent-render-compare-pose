@@ -1,0 +1,14 @@
+{
+  "exp": "/home/yashdeep/own/lrc/logs/tless-lrc/train_steps=100000+seed=42+den_mode=dit_nowm+wm=tless_ret_ho20+objs=1-20",
+  "step": 100000,
+  "n_instances": 6815,
+  "sample": {
+    "use_ddpm": false,
+    "eta": 1.0,
+    "beta_skip": true,
+    "steps": 100,
+    "batch_size": 100,
+    "n_slices": 1
+  },
+  "renderer": "vispy"
+}
