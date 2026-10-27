@@ -1,0 +1,16 @@
+{
+  "arm": "field",
+  "out": "/media/kavinder/hdd2/liepose_data/logs/probe/roll_field_proj16",
+  "field": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field_v1",
+  "steps": 30000,
+  "batch_size": 64,
+  "lr": 0.0003,
+  "max_deg": 10.0,
+  "base": 30.0,
+  "n_train": 40000,
+  "n_eval": 600,
+  "iters": 4,
+  "seed": 0,
+  "proj": "results/speedplus_diag/renderable_subspace_field_v1_train.npz",
+  "k": 16
+}

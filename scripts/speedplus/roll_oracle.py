@@ -78,14 +78,22 @@ def main():
   p.add_argument("--n_eval", type=int, default=600)
   p.add_argument("--iters", type=int, default=4)
   p.add_argument("--seed", type=int, default=0)
+  p.add_argument("--proj", default=None, help="renderable_subspace.py npz: compare in the top --k S_e-whitened directions")
+  p.add_argument("--k", type=int, default=16)
   a = p.parse_args()
   D = os.environ["DATADIR"]
   os.makedirs(a.out, exist_ok=True)
   json.dump(vars(a), open(os.path.join(a.out, "args.json"), "w"), indent=2)
   cmp = Comparator()
+  Dz = 384
+  P = None
+  if a.proj:
+    P = jnp.asarray(np.load(a.proj)["V"][:, : a.k])  # (384, k)
+    Dz = a.k
   meta_tr, idx_tr, _ = crop_meta(os.path.join(D, "speedplus_crops", "train"))
   meta_va, idx_va, _ = crop_meta(os.path.join(D, "speedplus_crops", "val"))
-  params = cmp.init(jax.random.PRNGKey(a.seed), jnp.zeros((1, 64, 384)), jnp.zeros((1, 64, 384)), jnp.zeros((1, 64)), jnp.asarray(meta_tr[:1]))
+  params = cmp.init(jax.random.PRNGKey(a.seed), jnp.zeros((1, 64, Dz)), jnp.zeros((1, 64, Dz)), jnp.zeros((1, 64)), jnp.asarray(meta_tr[:1]))
+  prj = (lambda z: z) if P is None else (lambda z: z @ P)
   sched = optax.warmup_cosine_decay_schedule(0.0, a.lr, 1000, a.steps, a.lr * 0.05)
   tx = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(sched, weight_decay=0.01))
   opt_state = tx.init(params)
@@ -129,6 +137,7 @@ def main():
   def step(params, opt_state, key, x, k):
     theta = jax.random.uniform(key, (k.shape[0],), minval=-a.max_deg, maxval=a.max_deg)
     z_obs, z_hat, opa = jax.lax.stop_gradient(pair(x, theta, k))
+    z_obs, z_hat = prj(z_obs), prj(z_hat)
 
     def loss_fn(params):
       out = cmp.apply(params, z_obs, z_hat, opa, k)[:, 0]
@@ -141,7 +150,7 @@ def main():
   @jax.jit
   def predict(params, x, theta, k):
     z_obs, z_hat, opa = pair(x, theta, k)
-    return cmp.apply(params, z_obs, z_hat, opa, k)[:, 0]
+    return cmp.apply(params, prj(z_obs), prj(z_hat), opa, k)[:, 0]
 
   logf = open(os.path.join(a.out, "log.jsonl"), "a")
   rng = np.random.default_rng(a.seed)
@@ -161,7 +170,7 @@ def main():
   open(os.path.join(a.out, "params.msgpack"), "wb").write(flax.serialization.to_bytes(params))
 
   # held-out val: theta per bin, one step and --iters re-rendered steps (the rendering re-made at the corrected offset)
-  res = {"arm": a.arm, "n_eval": int(n_va)}
+  res = {"arm": a.arm, "n_eval": int(n_va), "proj": a.proj, "k": a.k if a.proj else None}
   erng = np.random.default_rng(11)
   for lo, hi in BINS:
     th = erng.uniform(lo, hi, n_va) * erng.choice([-1, 1], n_va)
