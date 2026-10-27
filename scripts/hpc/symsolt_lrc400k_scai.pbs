@@ -1,0 +1,39 @@
+#!/bin/bash
+# SYMSOL-T latent render-and-compare denoiser at LiePose's training budget, dtu001 account.
+# LiePose (symsolt-se3-225k): 800k steps x batch 16 = 12.8M images; here 400k x 32 = 12.8M. n_slices 64 (LiePose: 256).
+# World model: ssc_ret_roll, picked on the train-225k holdout (valhold) before any test run; the denoiser trains on
+# the same split as the world model (trainhold = train-225k minus the 3% holdout). Re-submitting resumes.
+#   qsub -N ss400-dit -v MODE=dit symsolt_lrc400k_scai.pbs      (MODE=dit_nowm for the control)
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=64gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+cd $P/code_lrc
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+
+# stage the crop token cache (12.3 GB) on node-local disk, RAM fallback
+T=${TMPDIR:-/tmp}/lrc_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+df -h $T | tail -1
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/crop_cache
+if ! cp -rL $P/data/crop_cache $T/data/; then
+  rm -rf $T/data/crop_cache; mkdir -p /dev/shm/lrc_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/lrc_${PBS_JOBID%%.*}" EXIT
+  cp -rL $P/data/crop_cache /dev/shm/lrc_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/lrc_${PBS_JOBID%%.*}/crop_cache $T/data/
+fi
+du -sh $T/data/crop_cache
+export DATADIR=$T/data
+export PYTHONPATH=$P/code_lrc/src:$P/code/lib/bop_toolkit
+export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$P/xdg_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+mkdir -p $P/logs/experiments/symsolt-lrc
+
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.run --root_path $P/logs/experiments/symsolt-lrc "den_mode=[$MODE]" \
+  "wm_kind=[ret]" "wm_dir=[$P/data/probe/${WM:-ssc_ret_roll}]" "cache_dir=[$T/data/crop_cache]" "cache_train=[trainhold]" \
+  "batch_size=[32]" "n_slices=[64]" "train_steps=[400000]" "ckpt_steps=[25000]" \
+  >> $P/logs/symsolt_lrc400k_${MODE}.log 2>&1
+echo "SYMSOLT_LRC400K_DONE $?"

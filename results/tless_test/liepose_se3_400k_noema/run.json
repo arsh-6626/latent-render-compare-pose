@@ -1,0 +1,14 @@
+{
+  "exp": "/media/kavinder/hdd2/liepose_data/logs/experiments/tless-se3-hpc",
+  "step": 400000,
+  "sample": {
+    "use_ddpm": false,
+    "eta": 1.0,
+    "beta_skip": true,
+    "steps": 100,
+    "batch_size": 100,
+    "n_slices": 1
+  },
+  "renderer": "vispy",
+  "ema": false
+}

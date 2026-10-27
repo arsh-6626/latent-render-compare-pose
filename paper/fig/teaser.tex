@@ -1,0 +1,16 @@
+\begin{strip}
+\centering
+\figbox{4.2cm}{FIGURE PLACEHOLDER (teaser / method overview).\\[2pt]
+Left: an SE(3) diffusion step in LiePose~\cite{hsiao2024liepose} sees only image features and the noisy pose.\\
+Right: \method at the same step. The noisy pose $g_t$ retrieves the nearest training view $(\zref,\gref)$; the frozen world model
+$\WM$ predicts the DINOv2 tokens $\zhat(g_t)$ of the object at $g_t$ in the observation's crop; the denoiser compares
+$\zhat(g_t)$ with the observed tokens $\zobs$ and predicts the noise. Show: observation crop, retrieved reference,
+PCA-coloured predicted tokens at a wrong and at the converged pose, residual map $\|\zhat-\zobs\|$.}
+\captionsetup{hypcap=false}
+\captionof{figure}{\textbf{Render-and-compare inside every denoising step, in feature space.} At each step of SE(3) diffusion, a
+frozen world model predicts what the object would look like, as DINOv2 tokens, at the current noisy pose hypothesis; the denoiser
+conditions on the comparison between this prediction and the observation. No renderer, CAD texture or test-time optimisation is
+needed.}
+\captionsetup{hypcap=true}
+\label{fig:teaser}%
+\end{strip}

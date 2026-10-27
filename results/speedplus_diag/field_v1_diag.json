@@ -1,0 +1,13 @@
+{
+ "field": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field_v1",
+ "n": 1500,
+ "d_app": 1.770554542541504,
+ "hull_coverage_mean": 0.42238542437553406,
+ "gt_err_over_app_in_hull": 0.5302097534096645,
+ "gt_err_over_app_outside_hull": 0.5416777310306529,
+ "P 1-3": {
+  "uniform": 0.6489166666666667,
+  "gt_hull (diagnostic)": 0.7110833333333333,
+  "rendered_opacity": 0.6580833333333334
+ }
+}

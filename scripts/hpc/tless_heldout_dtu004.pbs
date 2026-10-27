@@ -1,0 +1,47 @@
+#!/bin/bash
+# T-LESS held-out-object (zero-shot) test, dtu004 account: world model and denoiser trained on objects 1-20 only; the
+# reference bank holds every object's training crops (posed reference views of objects 21-30, never trained on).
+#   STAGE=wm : probe_ret_tless --train_objs 1..20 (= results/probe/tless_ret_ho20, whose weights were not kept)
+#   STAGE=den: tless_dit, MODE=dit / dit_nowm, train_objs 1-20, WM tless_ret_ho20, 100k steps, BOP19 test
+#   j=$(qsub -N tl-ho-wm -v STAGE=wm tless_heldout_dtu004.pbs)
+#   qsub -N tl-ho-dit  -W depend=afterok:$j -v STAGE=den,MODE=dit      tless_heldout_dtu004.pbs
+#   qsub -N tl-ho-nowm -W depend=afterok:$j -v STAGE=den,MODE=dit_nowm tless_heldout_dtu004.pbs
+# Score seen / unseen: scripts/tless/score_subsets.py --seen 1-20.
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=64gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu004.visitor/lrc/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+W=/scratch/hpc/visitor/dtu004.visitor/lrc
+cd $P/code_lrc
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+
+T=${TMPDIR:-/tmp}/lrc_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+df -h $T | tail -1
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/tless_tokens
+if ! cp -rL $P/data/tless_tokens $T/data/; then
+  rm -rf $T/data/tless_tokens; mkdir -p /dev/shm/lrc_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/lrc_${PBS_JOBID%%.*}" EXIT
+  cp -rL $P/data/tless_tokens /dev/shm/lrc_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/lrc_${PBS_JOBID%%.*}/tless_tokens $T/data/
+fi
+du -sh $T/data/tless_tokens
+export DATADIR=$T/data
+export PATH=$P/env/liepose/bin:$PATH
+export PYTHONPATH=$P/code_lrc/src:$P/code/lib/bop_toolkit
+export TORCH_HOME=$W/torch_home XDG_CACHE_HOME=$W/xdg_cache CACHE_ROOT_PATH=$W/bop_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy
+mkdir -p $CACHE_ROOT_PATH $W/experiments/tless-lrc $W/probe
+
+if [ "$STAGE" = wm ]; then
+  $P/env/liepose/bin/python -u -m liepose.exp.jepa_probe.probe_ret_tless --cache $DATADIR/tless_tokens \
+    --out $W/probe/tless_ret_ho20 --train_objs $(seq 1 20) > $W/logs/tless_ho_wm_${PBS_JOBID}.log 2>&1
+else
+  $P/env/liepose/bin/python -u -m liepose.exp.cmp.tless_dit --root_path $W/experiments/tless-lrc "den_mode=[$MODE]" \
+    "wm_dir=[$W/probe/tless_ret_ho20]" "train_steps=[100000]" "num_workers=[8]" "train_objs=[[$(seq -s, 1 20)]]" \
+    > $W/logs/tless_ho_${MODE}_${PBS_JOBID}.log 2>&1
+fi
+echo "TLESS_HELDOUT_DONE $STAGE $?"

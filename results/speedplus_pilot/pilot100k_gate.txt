@@ -1,0 +1,7 @@
+SPEED+ flip-fix pilot, 100k steps, sp_ret_v1, synthetic validation only (gate fixed before training: val_aug >90 deg share <= 6%, clean val no worse)
+mode            val ESA  val >90  val med   val_aug ESA  val_aug >90 (aug crops)  val_aug med   gate
+control (prior)    -      4.0%      -           -          14.4% (17.1%)             5.34         -
+dit_nowm_app     0.210    4.1%     3.03       0.545        13.8% (16.3%)             4.96        FAIL
+dit_app_twin     0.188    3.9%     2.70       0.531        14.1% (16.7%)             4.43        FAIL
+dit_app          0.190    3.8%     2.86       0.557        14.9% (17.7%)             4.80        FAIL
+sp400-ret (dit, sp_ret_v1, 400k): lightbox 0.741, sunlamp 0.747 (official ESA; test_400000/esa.json on dtu004)

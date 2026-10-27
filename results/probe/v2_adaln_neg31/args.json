@@ -1,0 +1,23 @@
+{
+  "data": "/media/kavinder/hdd2/liepose_data/symsolt",
+  "out": "/media/kavinder/hdd2/liepose_data/logs/probe/v2_adaln_neg31",
+  "color_mode": "none",
+  "steps": 20000,
+  "batch_size": 16,
+  "lr": 0.0003,
+  "w_nce": 1.0,
+  "p_ref": 0.5,
+  "w_pose": 1.0,
+  "n_neg": 31,
+  "predictor": "adaln",
+  "ema_tau": 0.996,
+  "dim": 384,
+  "depth": 6,
+  "pred_depth": 4,
+  "eval_every": 2500,
+  "eval_per_shape": 50,
+  "eval_rand": 2048,
+  "eval_eq": 64,
+  "max_train_per_shape": null,
+  "seed": 0
+}

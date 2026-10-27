@@ -1,0 +1,28 @@
+#!/bin/bash
+# Eval only: LiePose SE(3) 400k (EMA, as on lightbox / sunlamp) on the SPEED+ synthetic validation split, 1 sample per
+# image, LiePose's test loop. Its validation errors are the start distribution for the iterative latent refiner (no
+# lightbox / sunlamp image is read). Any account; code from $P/code_pilot.
+#   qsub -N lp-val speedplus_liepose_val.pbs
+#   qsub -N lp-val16 -v N=16 -l walltime=10:00:00 speedplus_liepose_val.pbs    (16 samples per image, all saved)
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=64gb
+#PBS -l walltime=04:00:00
+#PBS -j oe
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+W=/scratch/hpc/visitor/$(whoami)/pilot; mkdir -p $W/logs $W/speedplus_test $W/xdg_cache $W/torch_home
+cd $P/code_pilot
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+export DATADIR=$P/data
+export PYTHONPATH=$P/code_pilot/src:$P/code/lib/bop_toolkit
+export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$W/xdg_cache XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+
+# the testbed writes into its experiment dir, and dtu001's experiment dirs are private: run from a copy (config + the
+# 400k checkpoint) that dtu001 staged, readable, at $P/data/exp_copies/liepose_se3_400k
+E=$W/liepose_se3_400k_exp; rm -rf $E; cp -r $P/data/exp_copies/liepose_se3_400k $E || exit 1
+$P/env/liepose/bin/python -u scripts/speedplus/test_liepose.py \
+  --exp $E --step 400000 \
+  --splits val --n_slices ${N:-1} --out $W/speedplus_test/liepose_se3_400k_val${N:+_n$N} >> $W/logs/liepose_val${N:+_n$N}.log 2>&1
+echo "LIEPOSE_VAL_DONE $?"

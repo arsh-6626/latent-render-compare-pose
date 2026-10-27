@@ -1,0 +1,34 @@
+{
+  "exp": "/media/kavinder/hdd2/liepose_data/logs/experiments/speedplus-se3/lie_type=se3+repr_type=tan+timesteps=100+seed=42",
+  "step": 400000,
+  "sample": {
+    "use_ddpm": false,
+    "eta": 1.0,
+    "beta_skip": true,
+    "steps": 100,
+    "batch_size": 100,
+    "n_slices": 1
+  },
+  "lightbox": {
+    "score": 0.23405585300838974,
+    "score_ori": 0.20294466418127857,
+    "score_pos": 0.031111188827111173,
+    "e_q_deg_mean": 11.628073836858352,
+    "e_q_deg_median": 3.0268817452052343,
+    "e_t_m_mean": 0.18256475767538274,
+    "e_t_m_median": 0.09535859381689671,
+    "n": 6740,
+    "sec_per_batch": 0.14711034831716052
+  },
+  "sunlamp": {
+    "score": 0.28945415894719784,
+    "score_ori": 0.26005845812553247,
+    "score_pos": 0.02939570082166534,
+    "e_q_deg_mean": 14.900252077272661,
+    "e_q_deg_median": 5.016217227026284,
+    "e_t_m_mean": 0.17538190436290998,
+    "e_t_m_median": 0.10737573966639488,
+    "n": 2791,
+    "sec_per_batch": 0.32586341434054905
+  }
+}

@@ -1,0 +1,331 @@
+\section{Experiments}
+\label{sec:exp}
+
+\subsection{Setup}
+\label{sec:setup}
+
+\paragraph{Benchmarks.}
+\emph{T-LESS}~\cite{hodan2017tless}: 30 texture-less industrial objects with discrete and continuous symmetries, heavy clutter and
+occlusion. We train on the PBR and real training images and test on the BOP19 targets of the real test set. \emph{YCB-V}~\cite{xiang2018posecnn}:
+21 household objects in cluttered video frames; PBR and real training images, BOP19 test targets.
+\emph{SPEED+}~\cite{park2022speedplus}: a single spacecraft; we train only on the synthetic images and test on the full
+hardware-in-the-loop \emph{lightbox} and \emph{sunlamp} sets, without using their images in any form during training.
+\emph{SYMSOL-T}~\cite{hsiao2024liepose}: five symmetric shapes (tetrahedron, cube, icosahedron, cone, cylinder) with random rotations
+and translations; LiePose's training and test splits.
+
+\paragraph{Metrics.}
+On T-LESS and YCB-V we report the BOP average recalls of VSD, MSSD and MSPD and their mean AR~\cite{hodan2020bop}, computed with the
+BOP toolkit; VSD uses the toolkit's Python renderer (\cref{sec:supp-protocol}). On SPEED+ we report the mean translation error
+$e_t$ (m), the mean rotation error $e_q=2\arccos|\langle q,\hat q\rangle|$ (deg), and the official SPEC2021 score
+$S=\tfrac{1}{n}\sum(e_q^{\mathrm{rad}}+e_t/\|t\|)$ with the competition's precision thresholds~\cite{park2022speedplus}
+(\cref{sec:supp-protocol}), on the full test sets. On SYMSOL-T we report the mean symmetric rotation error (deg) and mean translation error per shape, as in LiePose.
+
+\paragraph{Baselines and training budget.}
+The main baseline is LiePose~\cite{hsiao2024liepose}, which we retrain on every benchmark with its public code. All models we train
+see the same number of training images as our LiePose runs: 400k steps with batch 64 on T-LESS, YCB-V and SPEED+, and 400k steps with
+batch 32 on SYMSOL-T (LiePose: 800k steps with batch 16). Our T-LESS LiePose run uses batch 64 where the paper uses 32, and the
+control and \method draw from a fixed set of pre-augmented crops (\cref{sec:supp-disclose}). Because every noisy pose of \method queries the world model, we use 64 noisy poses per
+image instead of LiePose's 256; the control uses the same 64. We evaluate the final checkpoint of every run; no checkpoint is chosen on
+test data. For each run we sample with the weight average (EMA) or the live weights, whichever has the lower training loss, decided
+before any test evaluation (\cref{sec:supp-repro}). Published numbers of other methods are copied from their papers and marked by
+protocol.
+
+\paragraph{Implementation.}
+The world model has 6 blocks of width 384 and is trained for 30k steps (20k on SYMSOL-T) with AdamW. The denoiser has 4 blocks of width
+256. Sampling uses LiePose's 100-step sampler. Full details are in \cref{sec:supp-impl}.
+
+% ------------------------------------------------------------------------------------------------------------------------------
+\begin{table*}[t]
+\centering
+\caption{\textbf{T-LESS and YCB-V} (BOP19 targets, BOP average recall, \%). \emph{Crops}: GT = ground-truth visible box and mask;
+Det = detector boxes. Rows with different crops are not directly comparable. \emph{Ours} = trained by us with the same data, crops and
+number of training images. Published numbers are rounded to one decimal. $^\dagger$AR not reported; mean of the three recalls,
+computed by us. The GDRNPP numbers that~\cite{hsiao2024liepose} compares with are GDRNPP's leaderboard entry with one model per
+dataset and detected boxes (67.6 / 75.1 / 90.2), not a ground-truth-crop result. Published rows train on PBR and
+real images; $^\S$per-metric recalls from the BOP leaderboard~\cite{bopleaderboard}, as the papers report AR only (GDRNPP) or no BOP
+numbers (ZebraPose). \TODO{YCB-V of our rows.}}
+\label{tab:bop}
+\small
+\setlength{\tabcolsep}{4.2pt}
+\begin{tabular}{@{}llcc cccc cccc@{}}
+\toprule
+& & & & \multicolumn{4}{c}{T-LESS} & \multicolumn{4}{c}{YCB-V} \\
+\cmidrule(lr){5-8}\cmidrule(lr){9-12}
+Method & Encoder & Crops & Samples & VSD & MSSD & MSPD & AR & VSD & MSSD & MSPD & AR \\
+\midrule
+\multicolumn{12}{@{}l}{\emph{Published, detector crops (BOP leaderboard, RGB only)}} \\
+CosyPose~\cite{labbe2020cosypose}    & -- & Det & 1 & 66.9 & 69.5 & 82.1 & 72.8 & 77.2 & 84.2 & 85.0 & 82.1 \\ % CIR Tab. 2 (= BOP LB 1297 / 1303), PBR+real
+SurfEmb~\cite{haugaard2022surfemb}  & -- & Det & 1 & -- & -- & -- & 77.0 & -- & -- & -- & 71.8 \\ % SurfEmb Tab. 1, PBR+real (per-metric recalls not reported)
+ZebraPose~\cite{su2022zebrapose}$^\S$ & -- & Det & 1 & 69.6 & 74.0 & 88.9 & 77.5 & 75.1 & 83.0 & 86.4 & 81.5 \\ % BOP LB "zebrapose" 2904 / 2111 (CVPR paper gives no BOP AR)
+CIR, RGB~\cite{lipson2022cir}      & -- & Det & 1 & 66.3 & 68.4 & 79.8 & 71.5 & 78.3 & 83.5 & 85.2 & 82.4 \\ % CIR Tab. 2 (= LB 2166 / 2167)
+GDRNPP~\cite{liu2025gdrnpp}$^\S$  & -- & Det & 1 & 68.7 & 76.0 & 91.3 & 78.6 & 76.0 & 84.6 & 86.9 & 82.5 \\ % AR: GDRNPP TPAMI Tab. 5 (one model per object); per-metric: BOP LB 2717 / 2684
+\midrule
+\multicolumn{12}{@{}l}{\emph{Published, ground-truth crops}} \\
+LiePose~\cite{hsiao2024liepose}     & ResNet-34 & GT & 1 & 56.9 & 60.2 & 93.2 & 70.1$^\dagger$ & -- & -- & -- & -- \\ % LiePose Tab. 4, SE(3): 93.16 MSPD, 60.17 MSSD, 56.88 VSD (no AR reported; dagger = mean of the three, ours)
+\midrule
+\multicolumn{12}{@{}l}{\emph{Trained by us, ground-truth crops, matched number of training images}} \\
+LiePose (our training)              & ResNet-34 & GT & 1 & 63.1 & 65.7 & 92.3 & 73.7 & \pend & \pend & \pend & \pend \\ % live weights (tab:supp-ema); logs/tless_test/liepose_se3_400k_noema
+Control (no world model)            & DINOv2-S  & GT & 1 & 30.5 & 34.0 & 78.3 & 47.6 & \pend & \pend & \pend & \pend \\ % EMA; logs/tless_test/lrc_dit_nowm_400k
+\method                             & DINOv2-S  & GT & 1 & 38.4 & 42.3 & 82.4 & 54.3 & \pend & \pend & \pend & \pend \\ % EMA; logs/tless_test/lrc_dit_400k
+\method + selection                 & DINOv2-S  & GT & $N$ & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{\textbf{SPEED+} (full lightbox and sunlamp sets; $e_t$ in m, $e_q$ in degrees, $S$ = official SPEC2021 score; lower is better).
+All methods train on synthetic images only, except where marked. \emph{Box}: GT = box of the keypoints projected with the
+ground-truth pose; Det = detected. The oracle row selects with the ground truth and is a diagnostic, not a result. $S$ applies the precision floors to rotation and
+translation separately, as the competition server does; $^\ast$floors applied jointly as in~\cite{park2022speedplus} (at most 0.005 lower per
+image). --: not reported in metres. Published $e_q$ rounded to $0.1^\circ$. EagerNet uses test-time augmentation and several hypotheses.
+$^\P$Best submission of each team per category on the final leaderboard~\cite{kelvinsspec2021}, $e_q$ as tabulated
+in~\cite{park2024spnv3}. \TODO{fill our rows.}}
+\label{tab:speedplus}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lcc ccc ccc@{}}
+\toprule
+& & & \multicolumn{3}{c}{lightbox} & \multicolumn{3}{c}{sunlamp} \\
+\cmidrule(lr){4-6}\cmidrule(lr){7-9}
+Method & Box & Samples & $e_t$ & $e_q$ & $S$ & $e_t$ & $e_q$ & $S$ \\
+\midrule
+\multicolumn{9}{@{}l}{\emph{Published, synthetic training only}} \\
+KRN~\cite{park2022speedplus}$^\ast$                & GT  & 1 & 2.25  & 44.5 & 1.12  & 14.64 & 81.0 & 3.73  \\ % SPEED+ Tab. 3 (perfect boxes)
+HigherHRNet + EPnP~\cite{park2022speedplus}$^\ast$ & --  & 1 & 0.97  & 34.7 & 0.77  & 0.85  & 47.8 & 0.98  \\ % SPEED+ Tab. 3 (full image)
+SPNv2 ($\phi{=}3$, BN)~\cite{park2024spnv2}       & --  & 1 & 0.175 & 6.5  & 0.142 & 0.225 & 11.1 & 0.230 \\ % SPNv2 Tab. 5, offline (6.479 / 11.065 deg)
+EagerNet~\cite{ulmer2023eagernet}                  & Det & -- & --   & 1.7  & 0.039 & --    & 2.7  & 0.059 \\ % Ulmer Tab. I (Kelvins post-mortem); e_q in deg from SPNv3 Tab. 8; TTA + multi-hypothesis
+SPNv3-B~\cite{park2024spnv3}                       & GT  & 1 & --    & 2.2  & 0.051 & --    & 3.6  & 0.079 \\ % SPNv3 Tab. 8, mean of 3 seeds (2.183 / 3.612 deg); GT RoI
+Legrand et al.\ (HRNet)~\cite{legrand2024domain}   & GT  & 1 & 0.09  & 4.3  & 0.09  & 0.14  & 6.9  & 0.14  \\ % Legrand Tab. 2; RoI from GT keypoints
+\midrule
+\multicolumn{9}{@{}l}{\emph{Published, using unlabeled lightbox/sunlamp images (different protocol)}} \\
+SPNv2 + online domain refinement~\cite{park2024spnv2} & -- & 1 & 0.142 & 5.6 & 0.122 & 0.182 & 9.6 & 0.198 \\ % SPNv2 Tab. 5, phi=3 BN, B=4, N=1024
+SPEC2021, TangoUnchained~\cite{park2023spec2021}$^\P$ & -- & 1 & -- & 3.2 & 0.073 & -- & 4.3 & 0.090 \\ % Kelvins final results; deg from SPNv3 Tab. 8
+SPEC2021, lava1302~\cite{park2023spec2021}$^\P$       & -- & 1 & -- & 6.7 & 0.165 & -- & 2.7 & 0.059 \\ % Kelvins final results; deg from SPNv3 Tab. 8
+\midrule
+\multicolumn{9}{@{}l}{\emph{Trained by us, synthetic only, GT keypoint box, matched number of training images}} \\
+LiePose (our training)                       & GT  & 1 & 0.183 & 11.6 & 0.234 & 0.175 & 14.9 & 0.289 \\ % EMA (tab:supp-ema); logs/speedplus_test/liepose_se3_400k
+Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\
+\method, retrieval world model               & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\
+\method, + geometry tokens                   & GT  & 1 & 0.317 & 37.0 & 0.701 & 0.275 & 38.3 & 0.716 \\ % EMA; dtu004 speedplus-lrc/...dit+wm=sp_geo_v1/test_400000/esa.json
+\method, + geometry tokens + selection       & GT  & $N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
+\midrule
+\color{gray}Oracle selection among the same $N$ (diagnostic) & \color{gray}GT & \color{gray}$N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{SYMSOL-T} (mean rotation error $R$ in degrees, mean translation error $t$; lower is better). \emph{Input}: full image
+or crop around the rendered object. \TODO{fill.}}
+\label{tab:symsolt}
+\scriptsize
+\setlength{\tabcolsep}{2.0pt}
+\begin{tabular}{@{}lc cc cc cc cc cc@{}}
+\toprule
+& & \multicolumn{2}{c}{tet.} & \multicolumn{2}{c}{cube} & \multicolumn{2}{c}{icosa.} & \multicolumn{2}{c}{cone} & \multicolumn{2}{c}{cyl.} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}\cmidrule(lr){11-12}
+Method & Input & $R$ & $t$ & $R$ & $t$ & $R$ & $t$ & $R$ & $t$ & $R$ & $t$ \\
+\midrule
+Regression~\cite{hsiao2024liepose}       & full & 2.92 & 0.064 & 2.86 & 0.050 & 2.46 & 0.037 & 1.84 & 0.058 & 2.24 & 0.049 \\ % LiePose Tab. 3
+Iter. regression~\cite{hsiao2024liepose} & full & 4.25 & 0.048 & 4.20 & 0.037 & 29.33 & 0.026 & 1.63 & 0.037 & 2.34 & 0.032 \\ % LiePose Tab. 3
+LiePose~\cite{hsiao2024liepose}          & full & 0.59 & 0.016 & 0.58 & 0.011 & 0.64 & 0.012 & 0.54 & 0.016 & 0.41 & 0.011 \\ % LiePose Tab. 3, SE(3) (Supp. Tab. 6 prints cone R 0.55)
+\midrule
+LiePose (ours)                           & full & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+LiePose (ours)                           & crop & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+Control                                  & crop & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+\method                                  & crop & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ------------------------------------------------------------------------------------------------------------------------------
+\subsection{Main results}
+\label{sec:main}
+
+\paragraph{T-LESS and YCB-V.}
+\Cref{tab:bop} compares \method with LiePose trained by us under identical crops, data and training budget, with the no-world-model
+control, and with published methods. \TODO{describe: (i) \method vs control (the effect of the comparison), (ii) \method vs LiePose
+(ours), (iii) where the difference comes from, using the rotation and translation accuracies of \cref{tab:supp-tless-rt}, (iv) the
+effect of selection. Do not compare GT-crop rows with detector rows.}
+
+\paragraph{SPEED+.}
+\Cref{tab:speedplus} reports the full lightbox and sunlamp sets. \TODO{describe \method vs control vs LiePose; the effect of geometry
+tokens; the effect of selection, and the gap to the oracle as an upper bound on what selection could reach. State explicitly that the
+SPEC2021 entries used the unlabeled test-domain images and are not under our protocol.}
+
+\paragraph{SYMSOL-T.}
+\Cref{tab:symsolt} reports per-shape errors. \TODO{describe; compare LiePose with crops vs with the full image first, so that the effect
+of the crop is separated from the effect of the world model.}
+
+% ------------------------------------------------------------------------------------------------------------------------------
+\subsection{Ablations}
+\label{sec:ablation}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{World-model variants.} Same denoiser and training budget (100k steps $\times$ batch 32, 16 noisy poses per image;
+\cref{tab:supp-budget}); one sample. T-LESS: AR (\%, $\uparrow$); SPEED+: score $S$ on
+lightbox ($\downarrow$); SYMSOL-T: mean rotation error over shapes (deg, $\downarrow$). \TODO{fill.}}
+\label{tab:abl-wm}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}l ccc@{}}
+\toprule
+World model in the denoiser & T-LESS & SPEED+ & SYMSOL-T \\
+\midrule
+None (control, $\zhat{=}0$)                        & 41.2 & 0.782 & \pend \\ % 100k: lrc_dit_nowm_100k; sp dit_nowm sp_ret_v1
+Learned template, no reference                     & \pend & \pend & \pend \\
+Retrieved reference                                & 54.7 & 0.734 & \pend \\ % 100k: lrc_dit_100k; sp dit sp_ret_v1
+\quad + geometry tokens                            & --    & 0.717 & \pend \\ % 100k: sp dit sp_geo_v1
+\quad + roll / render-pair targets                 & --    & --    & \pend \\
+\color{gray}Oracle $\zhat$: GT-view tokens (diag.)  & \pend & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{Denoiser inputs and when the comparison is used.} T-LESS AR (\%, $\uparrow$) and SPEED+ lightbox $S$ ($\downarrow$), one
+sample, 100k training steps $\times$ batch 32 (16 noisy poses per image) for every row. \TODO{fill.}}
+\label{tab:abl-den}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l cc@{}}
+\toprule
+Variant & T-LESS & SPEED+ \\
+\midrule
+$[\zobs]$ (control)                                        & 41.2 & 0.782 \\
+$[\zobs,\zhat]$                                            & 53.7 & 0.716 \\ % abl_dit_in2_100k
+$[\zobs,\zhat,\zhat-\zobs]$                                & 54.6 & 0.718 \\ % abl_dit_in3_100k
+$[\zobs,\zhat,\zhat-\zobs,w]$ (\method)                     & 54.7 & 0.734 \\
+\midrule
+Comparison only for $t\ge t_0$ (high noise)      & 40.7 & 0.774 \\ % abl_dit_hi_100k
+Comparison only for $t< t_0$ (low noise)         & 52.4 & 0.755 \\ % abl_dit_lo_100k
+Energy only (control + selection)                & \pend & \pend \\
+\midrule
+$8{\times}8$ pooled tokens (\method)             & 54.7 & 0.734 \\ % same runs as the (\method) row above
+$16{\times}16$ full-resolution tokens            & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{What the world model contributes.}
+\Cref{tab:abl-wm} replaces the world model while keeping the denoiser and budget fixed. A per-object learned template predicts tokens
+from the pose alone, without a reference view; the retrieval variants predict from the nearest training view. The oracle row feeds the
+tokens of the ground-truth view and is an upper bound on what a perfect world model could provide. \TODO{describe.}
+
+\paragraph{How the denoiser uses it.}
+\Cref{tab:abl-den} varies the denoiser's input tokens, restricts the comparison to part of the noise schedule (the prediction is
+zeroed, as in the control, outside $t\ge t_0$ or $t<t_0$, with $t_0=50$ of the $100$ training timesteps, fixed in advance), and compares in-loop
+comparison against using the world model only to select among samples of the control. The last block varies the token resolution of
+both observation and prediction. \TODO{describe.}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{Selection among $N$ samples} (SPEED+ lightbox $S$, $\downarrow$; T-LESS AR, $\uparrow$). Energy: \cref{eq:energy};
+random: a uniformly random sample; oracle: the sample closest to the ground truth in rotation (diagnostic). SPEED+: the 100k model with
+geometry tokens (\cref{tab:abl-wm}). \TODO{fill.}}
+\label{tab:select}
+\small
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{@{}c ccc ccc@{}}
+\toprule
+& \multicolumn{3}{c}{SPEED+ lightbox $S$} & \multicolumn{3}{c}{T-LESS AR} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+$N$ & random & energy & \color{gray}oracle & random & energy & \color{gray}oracle \\
+\midrule
+1  & 0.713 & 0.713 & 0.713 & \pend & \pend & \pend \\ % N=1: sample 0 of the 16 (logs/speedplus_test/lrc_dit_sp_geo_v1_100k_best16)
+4  & \pend & \pend & \pend & \pend & \pend & \pend \\
+8  & \pend & \pend & \pend & \pend & \pend & \pend \\
+16 & 0.713 & 0.593 & 0.331 & \pend & \pend & \pend \\ % random = sample 0; energy_pick; diag_oracle_rot
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Selection.}
+\Cref{tab:select} varies the number of samples. The oracle column shows how often a good sample exists among the $N$, and therefore how
+much any selection rule could gain; the energy column shows how much of this the world model recovers. \TODO{describe.}
+
+% ------------------------------------------------------------------------------------------------------------------------------
+\subsection{Analysis}
+\label{sec:analysis}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{What the world model can discriminate.} For held-out observations, the probability that the energy of a perturbed pose
+exceeds the energy of the ground-truth pose (0.5 = chance), by size of the rotation perturbation, and for translation perturbations;
+references are retrieved at a noisy ground truth. \TODO{fill; T-LESS from held-out training crops, SPEED+ from the validation split,
+SYMSOL-T after the evaluation set is rebuilt from training images (\cref{sec:supp-disclose}).}}
+\label{tab:wm-disc}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l cccc@{}}
+\toprule
+& \multicolumn{3}{c}{rotation perturbation} & \\
+\cmidrule(lr){2-4}
+& $1$--$3^\circ$ & $3$--$10^\circ$ & $10$--$30^\circ$ & translation \\
+\midrule
+T-LESS   & \pend & \pend & \pend & \pend \\
+YCB-V    & \pend & \pend & \pend & \pend \\
+SPEED+ (retrieval)   & 0.54 & 0.64 & 0.90 & \pend \\
+SPEED+ (+ geometry)  & 0.55 & 0.70 & 0.95 & \pend \\ % SPEED+ rows: synthetic val, 3000 crops x 2 perturbations per bin, refs retrieved at each pose (scripts/speedplus/wm_disc.py); val_aug: 0.53/0.62/0.85 and 0.53/0.66/0.89
+SYMSOL-T & \pend & \pend & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\figbox{4.0cm}{FIGURE PLACEHOLDER (flip timing, SPEED+ lightbox, diagnostic).\\[2pt]
+x: denoising step (0 = pure noise, 100 = final). Left y: share of samples whose rotation error exceeds $90^\circ$. Right y: within-image
+probability that the energy prefers a good sample ($<30^\circ$) over a flipped one ($>90^\circ$). Curves for \method and control.}
+\caption{\textbf{When are flips decided?} The share of flipped samples and the world model's ability to tell flipped from correct
+hypotheses, along the sampling trajectory. Ground truth is used only to measure. \TODO{caption text from the result.}}
+\label{fig:flip}
+\end{figure}
+
+\paragraph{What the world model can and cannot see.}
+\Cref{tab:wm-disc} measures the world model on its own, independently of the denoiser: how reliably its energy prefers the true pose
+over perturbed ones. This bounds the precision that the comparison can add on top of the denoiser. \TODO{describe; relate the
+finest bin to the remaining error of LiePose and \method in \cref{tab:bop}.}
+
+\paragraph{When are flips decided?}
+On SPEED+, the dominant failure is a flipped estimate. \Cref{fig:flip} tracks, along the sampling trajectory, the share of samples that
+are flipped and how well the energy separates flipped from correct samples of the same image. \TODO{describe; this analysis
+motivates selection (\cref{sec:select}) and the noise-level ablation of \cref{tab:abl-den}.}
+
+\begin{figure}[t]
+\centering
+\figbox{3.6cm}{FIGURE PLACEHOLDER (qualitative).\\[2pt]
+Rows: T-LESS, YCB-V, SPEED+ lightbox, SPEED+ sunlamp. Columns: input crop; LiePose estimate (projected model outline); \method
+estimate; predicted tokens at the estimate vs observed tokens (PCA colours); one failure case per dataset.}
+\caption{\textbf{Qualitative results and failures.} \TODO{caption.}}
+\label{fig:qual}
+\end{figure}
+
+\subsection{Runtime}
+\label{sec:runtime}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{Runtime} per image (ms), one sample, 100 steps, batch 100, on one \TODO{GPU model}. Retrieval runs on the CPU.
+\TODO{fill.}}
+\label{tab:runtime}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l cccc@{}}
+\toprule
+Method & encoder & retrieval & world model & total \\
+\midrule
+LiePose (ours)          & \pend & --    & --    & \pend \\
+Control                 & \pend & --    & --    & \pend \\
+\method                 & \pend & \pend & \pend & \pend \\
+\method + selection ($N$) & \pend & \pend & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\Cref{tab:runtime} breaks down the inference cost. The world model and the retrieval are evaluated once per sample and step.
+\TODO{describe; mention fewer steps as in LiePose's runtime study if measured.}

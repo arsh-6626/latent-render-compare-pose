@@ -1,0 +1,23 @@
+{
+  "exp": "/scratch/hpc/visitor/dtu004.visitor/pilot/liepose_se3_400k_exp",
+  "step": 400000,
+  "sample": {
+    "use_ddpm": false,
+    "eta": 1.0,
+    "beta_skip": true,
+    "steps": 100,
+    "batch_size": 100,
+    "n_slices": 1
+  },
+  "val": {
+    "score": 0.1036050459041835,
+    "score_ori": 0.09606465198784993,
+    "score_pos": 0.007540393916333594,
+    "e_q_deg_mean": 5.507466288742759,
+    "e_q_deg_median": 0.6114319136165873,
+    "e_t_m_mean": 0.04649317477422277,
+    "e_t_m_median": 0.019290211578357107,
+    "n": 11994,
+    "sec_per_batch": 0.21259489380011037
+  }
+}

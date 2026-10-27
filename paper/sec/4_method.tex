@@ -1,0 +1,127 @@
+\section{Method}
+\label{sec:method}
+
+\method has two parts. A world model $\WM$ predicts the DINOv2 tokens of an object at an arbitrary pose from a retrieved reference
+view (\cref{sec:obs,sec:wm}); it is trained first and then frozen (\cref{sec:wmtrain}). A diffusion denoiser uses the prediction at
+its current hypothesis at every step (\cref{sec:den}), and the same prediction ranks complete samples (\cref{sec:select}).
+\Cref{fig:method} gives an overview.
+
+\begin{figure}[t]
+\centering
+\figbox{5.2cm}{FIGURE PLACEHOLDER (architecture).\\[2pt]
+(a) World model: reference tokens $\zref$ (+ geometry tokens, + 7 virtual-point tokens) $\rightarrow$ 6 adaLN transformer blocks
+conditioned on Fourier features of $(g,\ g\,(\gref)^{-1})$ $\rightarrow$ predicted tokens $\zhat(g)$.\\
+(b) Denoiser step: $g_t \rightarrow$ retrieval $\rightarrow \WM$ (frozen) $\rightarrow [\zobs,\zhat,\zhat-\zobs,w]$ tokens + conditioning
+token $c(t,g_t,k)$ $\rightarrow$ 4 adaLN blocks $\rightarrow \epsilon_\theta$.\\
+(c) Selection: $N$ samples, energy $E(g_i)$, $\argmin$.}
+\caption{\textbf{Architecture of \method.} (a) The world model predicts tokens at pose $g$ from the nearest training view.
+(b) Each denoising step compares this prediction at the current hypothesis with the observation. (c) The same prediction gives an
+energy that ranks finished samples.}
+\label{fig:method}
+\end{figure}
+
+\subsection{Observation tokens}
+\label{sec:obs}
+The input is a $224\times224$ crop $I$ of the object, cut and resized as in LiePose (dynamic zoom-in at training time), with
+pixels outside the visible mask set to zero when a mask is part of the protocol (\cref{sec:protocol}). A frozen DINOv2
+ViT-S/14~\cite{oquab2024dinov2} maps it to $16\times16$ patch tokens of dimension 384, which we average-pool $2\times2$ into
+$\zobs\in\mathbb{R}^{64\times384}$. A per-token weight $w_p=w_0+m_p$ emphasises the object: $m_p\in\{0,1\}$ is the max-pooled visible mask
+dilated by one token, and $w_0=0.05$ keeps a small weight on background tokens. Where no mask is available (SPEED+), $m_p=1$. The crop
+is also described by box quantities $k$ (zoom, crop origin, box size and aspect), which contain no pose information. Tokens of all
+training crops are computed once and cached; the image encoder is never trained.
+
+\subsection{A retrieval-referenced world model}
+\label{sec:wm}
+Predicting the appearance of an object at an arbitrary pose from nothing is hard: the model would have to store the object's appearance
+from every viewpoint. We instead predict from the nearest available view. For each object $o$, the \emph{reference bank} holds the
+cached tokens, poses and crop boxes of the training crops, $\mathcal{B}_o=\{(\zobs_i,g_i,k_i)\}$, expanded by the object's symmetry
+group $\mathcal{S}_o$ when one is known: each crop appears once per symmetric equivalent $(R_iS,t_i)$, $S\in\mathcal{S}_o$, subsampled to at
+most 36 (T-LESS, YCB-V) or 60 (SYMSOL-T) equivalents. Given a query pose $g=(R,t)$, retrieval returns the nearest entry under the key
+$[\mathrm{vec}(R_{\text{allo}}),\ \lambda t]$, $\mathrm{ret}(g)=(\zref,\gref,k^{\mathrm{ref}})$. While training both the world model and
+the denoiser, entries that come from the observation's own source image are excluded, so the model never sees its target as a
+reference. At test time the bank contains training crops only.
+
+The world model predicts the tokens of the object at pose $g$, in the crop $k$ of the observation:
+\begin{equation}
+\zhat(g) = \WM\big(\zref,\ \gref \!\rightarrow\! g,\ k^{\mathrm{ref}},\ k\big)\in\mathbb{R}^{64\times384}.
+\label{eq:wm}
+\end{equation}
+$\WM$ is a 6-block transformer of width 384 whose blocks are modulated (adaLN~\cite{peebles2023dit}) by Fourier features of the target
+pose $g$ and of the relative pose $g\,(\gref)^{-1}$. Its input tokens are a linear projection of $\zref$.
+
+\paragraph{Geometry tokens.}
+A rotation of half a degree changes DINOv2 tokens very little, but it moves image points by a computable amount. When the camera
+intrinsics and the crop box are available, we give this displacement to the model explicitly. For every reference token centre we
+back-project onto a fronto-parallel plane at the reference object depth, move the point rigidly from $\gref$ to $g$, and project it into
+the observation's crop; the token receives the displacement in token units and the log depth ratio, Fourier-encoded and added through a
+zero-initialised layer. In addition, seven virtual object-frame points (the centre and six axis tips at a nominal radius; no CAD model)
+are projected at both poses and prepended as tokens. We use geometry tokens on SYMSOL-T and SPEED+; on T-LESS and YCB-V the token cache
+does not store the per-crop intrinsics they need, and the world model uses the reference tokens and pose only.
+\TODO{state whether YCB-V uses geometry tokens once its world model is trained.}
+
+\paragraph{Energy.}
+The world model defines an energy of a pose hypothesis given the observation, the foreground-weighted squared token distance
+\begin{equation}
+E(g;\zobs) = \frac{\sum_p w_p\, \tfrac{1}{D}\|\zhat_p(g)-\zobs_p\|^2}{\sum_p w_p},
+\label{eq:energy}
+\end{equation}
+with $D=384$ and the reference retrieved at $g$.
+
+\subsection{Training the world model}
+\label{sec:wmtrain}
+We train $\WM$ so that its energy ranks poses, not only so that it reconstructs tokens. For each training crop with pose $g^\star$ we
+form a candidate set $\mathcal{C}$: the ground truth, 11 uniformly random rotations, 12 rotations within $30^\circ$ of $g^\star$,
+4 translation perturbations and 4 translations taken from other crops. The reference is retrieved at a noisy copy of $g^\star$
+(rotation perturbed by $|\mathcal{N}(0,5^\circ)|$, translation by Gaussian noise), which mimics the poses at which the denoiser will
+query it. With a soft target that accounts for symmetry,
+$q_c \propto \exp\!\big(-d_{\mathcal{S}}(R_c,R^\star)^2/2\sigma_R^2-\|t_c-t^\star\|^2/2\sigma_t^2\big)$, where $d_{\mathcal{S}}$ is the rotation
+distance to the nearest symmetric equivalent, the loss is
+\begin{equation}
+\mathcal{L}_{\mathrm{WM}} = \mathrm{CE}\Big(\mathrm{softmax}_c\big(-E(g_c)/\tau\big),\ q\Big) + \lambda_{\mathrm{rec}}\,E(g^\star),
+\label{eq:wmloss}
+\end{equation}
+with a learned temperature $\tau$. The first term makes the energy rank candidates; the second anchors the prediction at the true
+pose to the observed tokens. On SYMSOL-T we add regression targets from in-plane rotations of training images and from rendered pose
+pairs (\cref{sec:supp-wm} of the supplement). The world model is trained once per dataset and is not updated afterwards.
+
+\subsection{Comparing inside every denoising step}
+\label{sec:den}
+At step $t$, each sample with pose $g_t$ retrieves $\mathrm{ret}(g_t)$ and receives the world model's prediction $\zhat(g_t)$ in its
+observation's crop. The denoiser forms one input token per image patch from the observation, the prediction, their difference and the
+weight,
+\begin{equation}
+x_p=\mathrm{Lin}\big(\mathrm{LN}([\,\zobs_p,\ \zhat_p(g_t),\ \zhat_p(g_t)-\zobs_p,\ w_p\,])\big)+e_p,
+\label{eq:tokens}
+\end{equation}
+with a learned position embedding $e_p$. A conditioning vector $c=\mathrm{Lin}(\mathrm{SiLU}(\gamma_t(t)+\gamma_g(r_t)+\gamma_k(k)))$ combines
+Fourier embeddings $\gamma$ of the step, of the Lie-algebra coordinates $r_t$ of $g_t$, and of the crop box. $c$ is prepended as a token
+and modulates four adaLN transformer blocks of width 256; the output at the conditioning token is mapped to the 6-dimensional noise
+$\epsilon_\theta$. The prediction $\zhat$ is treated as a constant (no gradient reaches $\WM$).
+
+The network is trained and sampled with the generative process of \cref{sec:background} (noise-prediction loss, 100-step sampler,
+weight averaging). Because $\zhat$ depends on $g_t$, the denoiser can read the error of its own hypothesis from the difference tokens instead of
+inferring it from image features alone. Retrieval is a nearest-neighbour query on the CPU and the world model is a forward pass per
+sample and step; we report the cost in \cref{sec:runtime}.
+
+\paragraph{Control without the world model.}
+To isolate the comparison, the control is the same network with $\zhat:=0$ in \cref{eq:tokens}, trained identically. It sees the same
+DINOv2 observation tokens, crop box and pose embedding, so any difference between \method and the control is due to the predicted
+tokens alone. Note that the control is a DINOv2 token denoiser, not LiePose, which uses a trained ResNet-34 encoder.
+
+\subsection{Selecting among samples}
+\label{sec:select}
+A diffusion sampler returns one pose per run, and independent runs can land in different modes, \eg flipped configurations of a
+near-symmetric object. We draw $N$ samples from independent priors and return $\hat g=\argmin_{i} E(g_i;\zobs)$
+(\cref{eq:energy}), with the reference retrieved at each $g_i$. Selection uses only the observation and the training bank. $N$ is fixed
+in advance for all benchmarks, $N=16$; results with one sample are the protocol of the main tables unless marked otherwise.
+
+\subsection{Information used at test time}
+\label{sec:protocol}
+At test time \method uses the image crop, the box quantities $k$, the camera intrinsics (for geometry tokens), the object identity (to
+select the reference bank $\mathcal{B}_o$, as in the BOP task where the target objects are given), and the cached tokens of training
+crops. Crops are ground-truth boxes on all benchmarks: on T-LESS and YCB-V the visible box and visible mask, as in LiePose's
+protocol~\cite{hsiao2024liepose}; on SPEED+ the box of the spacecraft keypoints projected with the ground-truth pose; on SYMSOL-T the
+box of the rendered object's foreground. On T-LESS, YCB-V and SPEED+ every method we train uses the same crops. On SYMSOL-T LiePose
+takes the full image, so the crop gives \method information that LiePose does not use; we report LiePose with the same crops as well
+(\cref{tab:symsolt}). Rows whose crops come from a detector are marked. Apart from these crops, no ground-truth quantity enters
+inference.

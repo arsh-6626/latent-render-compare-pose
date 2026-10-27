@@ -1,0 +1,22 @@
+{
+  "cache": "/media/kavinder/hdd2/liepose_data/dino_cache",
+  "out": "/media/kavinder/hdd2/liepose_data/logs/probe/v3_soft15_full",
+  "pool": 2,
+  "shapes": null,
+  "max_train_per_shape": null,
+  "steps": 30000,
+  "batch_size": 32,
+  "n_uni": 15,
+  "n_near": 16,
+  "w_rec": 1.0,
+  "soft_sigma": 15.0,
+  "near_min_deg": 0.0,
+  "lr": 0.0003,
+  "dim": 384,
+  "depth": 6,
+  "eval_every": 5000,
+  "eval_per_shape": 50,
+  "eval_rand": 2048,
+  "eval_train": true,
+  "seed": 0
+}
