@@ -2,6 +2,9 @@
 # Upstream LiePose SE(3) on T-LESS (400k steps, batch 64 x 256 slices), resumable.
 #   qsub -N tless-se3 scripts/hpc/tless_liepose_scai.pbs     (resubmit to continue after the 24 h cap)
 #PBS -P hpc.dtu.kavinder
+# equal-budget baseline (the exp path omits train_steps, so a separate ROOT):
+#   qsub -q standard -l select=1:ncpus=12:ngpus=1:mem=96gb:centos=icelake -l walltime=120:00:00 -N lp-tl100 \
+#     -v STEPS=100000,ROOT=tless-se3-100k,NW=10 tless_liepose_scai.pbs
 #PBS -q scai_q
 #PBS -l select=1:ncpus=16:ngpus=1:mem=128gb
 #PBS -l walltime=24:00:00
@@ -22,7 +25,7 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
 mkdir -p $CACHE_ROOT_PATH
 
 $P/env/liepose/bin/python -u -m liepose.exp.cmp.bop_run \
-  --root_path $P/logs/experiments/tless-se3 "lie_type=[se3]" "ckpt_steps=[25000]" "num_workers=[${NW:-12}]" \
-  > $P/logs/tless_se3_${PBS_JOBID}.log 2>&1
+  --root_path $P/logs/experiments/${ROOT:-tless-se3} "lie_type=[se3]" "ckpt_steps=[25000]" "num_workers=[${NW:-12}]" \
+  "train_steps=[${STEPS:-400000}]" > $P/logs/tless_se3_${PBS_JOBID}.log 2>&1
 
 echo TLESS_DONE
