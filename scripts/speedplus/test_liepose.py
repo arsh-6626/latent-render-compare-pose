@@ -50,10 +50,44 @@ class Collector:
     pass
 
 
+class CropBatches:
+  """--crops: LiePose's test crops from the export_crops.py shards (the same dataset class without augmentation)
+  instead of re-cropping the full frames; GT (scorer only) from the same shards"""
+
+  def __init__(self, crops_dir, batch):
+    import glob
+    sh = [np.load(f) for f in sorted(glob.glob(os.path.join(crops_dir, "shard_*.npz")))]
+    self.d = {k: np.concatenate([x[k] for x in sh]) for k in ["index", "image", "bbox", "bbox_center", "focal_ratio", "rotation", "translation"]}
+    self.batch = batch
+    self.dataset = self
+    self.ann = {"quat": None, "tran": None}  # filled by order of index below
+
+  def __len__(self):
+    return (len(self.d["index"]) + self.batch - 1) // self.batch
+
+  def __iter__(self):
+    for s in range(0, len(self.d["index"]), self.batch):
+      b = {k: v[s:s + self.batch] for k, v in self.d.items() if k not in ("rotation", "translation")}
+      b["image"] = b["image"].astype(np.float32)
+      b["mask"] = np.ones(b["image"].shape[:3] + (1,), np.float32)
+      yield b
+
+
 class SpeedPlusTest(TestbedSE3):
+  crops = None
+
   def create_test_evaluator(self, dataset):
     self.collector = Collector()
     return self.collector
+
+  def create_test_dataset(self):
+    if self.crops is None:
+      return super().create_test_dataset()
+    cb = CropBatches(os.path.join(self.crops, self.a.test_datasets), self.opt.batch_size)
+    o = np.argsort(cb.d["index"])
+    assert (cb.d["index"][o] == np.arange(len(o))).all(), "crop shards do not hold the full split"
+    cb.ann = {"quat": cb.d["rotation"][o], "tran": cb.d["translation"][o]}
+    return cb
 
 
 def main():
@@ -63,12 +97,14 @@ def main():
   p.add_argument("--splits", nargs="+", default=["lightbox", "sunlamp"])
   p.add_argument("--out", required=True)
   p.add_argument("--n_slices", type=int, default=1, help="samples per image; sample 0 is scored, all are saved")
+  p.add_argument("--crops", default=None, help="speedplus_crops dir: test crops from the shards (no full frames needed)")
   a = p.parse_args()
   SAMPLE["n_slices"] = a.n_slices
   os.makedirs(a.out, exist_ok=True)
 
   cfg = Options(OmegaConf.to_container(OmegaConf.load(os.path.join(a.exp, "configs.yaml")), resolve=True))
   cfg.restore_path, cfg.restore_step, cfg.skip_train = None, a.step, True
+  SpeedPlusTest.crops = a.crops
   tb = SpeedPlusTest(cfg, a.exp, setup=True)
   assert int(tb.state.step) == a.step, (int(tb.state.step), a.step)
   print(f"restored step {int(tb.state.step)}", flush=True)
