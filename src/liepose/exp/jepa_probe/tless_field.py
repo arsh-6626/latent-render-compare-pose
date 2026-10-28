@@ -39,7 +39,7 @@ import numpy as np
 import optax
 
 from liepose.exp.jepa_probe import probe_ret_tless as prt
-from liepose.exp.jepa_probe.field import bilinear, fourier
+from liepose.exp.jepa_probe.field import fourier
 from liepose.exp.jepa_probe.probe_frozen import FG_FLOOR, weighted_energy
 from liepose.exp.jepa_probe.probe_tless import TokenSplit, load_symmetries
 from liepose.exp.jepa_probe.sp_geometry import quat_to_mat
@@ -69,6 +69,21 @@ def crop_meta10(d):
   k = np.stack([224.0 / dzi, c[:, 0] - dzi / 2, c[:, 1] - dzi / 2, np.maximum(bb[:, 2] - bb[:, 0], 1), np.maximum(bb[:, 3] - bb[:, 1], 1),
                 np.asarray(d["focal_ratio"], np.float64).reshape(-1), K[:, 0, 0], K[:, 1, 1], K[:, 0, 2], K[:, 1, 2]], -1)
   return k.astype(np.float32)
+
+
+def bilinear_obj(planes, o, uv):
+  """planes (N_OBJ, R, R, C), o (N,) object index, uv (N, ..., 2) in [-1, 1] -> (N, ..., C); zero outside.
+  field.bilinear per sample without gathering a whole plane per sample (points index the object's plane directly)"""
+  R = planes.shape[1]
+  p = (uv + 1.0) * 0.5 * (R - 1)
+  p0 = jnp.floor(p)
+  w = p - p0
+  i0 = jnp.clip(p0.astype(jnp.int32), 0, R - 1)
+  i1 = jnp.clip(i0 + 1, 0, R - 1)
+  ob = o.reshape(o.shape + (1,) * (uv.ndim - 2))
+  g = lambda i, j: planes[ob, i[..., 1], j[..., 0]]
+  return (g(i0, i0) * ((1 - w[..., 0]) * (1 - w[..., 1]))[..., None] + g(i0, i1) * (w[..., 0] * (1 - w[..., 1]))[..., None]
+          + g(i1, i0) * ((1 - w[..., 0]) * w[..., 1])[..., None] + g(i1, i1) * (w[..., 0] * w[..., 1])[..., None])
 
 
 class TlessGeometry:
@@ -122,7 +137,7 @@ class TlessField(nn.Module):
 
   def point(self, x, o):
     """x (N, ..., 3) object frame / r_o, o (N,) object index -> sigma (N, ...), h (N, ..., hid)"""
-    f = sum(jax.vmap(bilinear)(p[o], x[..., ij]) for p, ij in zip(self.planes, ([0, 1], [0, 2], [1, 2])))
+    f = sum(bilinear_obj(p, o, x[..., ij]) for p, ij in zip(self.planes, ([0, 1], [0, 2], [1, 2])))
     h = jnp.concatenate([f, fourier(x, 4)], -1)
     for d in self.mlp:
       h = nn.gelu(d(h))
