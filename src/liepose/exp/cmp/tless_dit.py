@@ -16,6 +16,12 @@ model was trained; training: the observation's own source image excluded).
 
 mode "dit_nowm": z_hat = 0 (same denoiser and inputs without the world model; the control).
 
+modes "dit_ft" / "dit_nowm_ft" (trained backbone, as sp_dit.py): LiePose's own T-LESS image pipeline (crops with its DZI /
+colour augmentation, image x visible mask, as the token cache was encoded) replaces the token cache; the denoiser runs
+DINOv2 itself: a frozen copy gives z_obs in the world model's token space (2x2-pooled), so the comparison is unchanged,
+and a trainable copy (lr x bb_lr_mult) gives its 16 x 16 tokens as an extra stream; the token weights come from the
+crop's visible mask as encode_crops.py computes them (8 x 8 area mean, 3 x 3 max). Test crops: LiePose's TestDataset.
+
 train_objs (held-out objects, zero-shot test): the denoiser trains on these objects' crops only; the reference bank
 keeps every object's training crops (an unseen object's posed reference views, never trained on), and the world
 model should be trained on the same objects (probe_ret_tless --train_objs). The denoiser has no object input, so on
@@ -39,6 +45,7 @@ import flax
 import jax
 import jax.numpy as jnp
 import numpy as np
+import optax
 from flax.core import FrozenDict, freeze, unfreeze
 from scipy.spatial.transform import Rotation
 from tqdm import tqdm
@@ -52,7 +59,15 @@ from liepose.utils.exploration import Options
 
 from .dit_ret import RetDenoiser
 
-MODES = ("dit", "dit_nowm", "dit_in2", "dit_in3", "dit_hi", "dit_lo")  # dit_ret.py
+MODES = ("dit", "dit_nowm", "dit_in2", "dit_in3", "dit_hi", "dit_lo", "dit_ft", "dit_nowm_ft")  # dit_ret.py (+ _ft)
+FT = ("dit_ft", "dit_nowm_ft")
+
+
+def mask_fg(mask):
+  """(N, 224, 224) visible mask -> (N, 64) token weights, as encode_crops.py (8 x 8 area mean, then 3 x 3 max)"""
+  m = mask.reshape(mask.shape[0], 8, 28, 8, 28).mean((2, 4))
+  m = jax.lax.reduce_window(m, -jnp.inf, jax.lax.max, (1, 3, 3), (1, 1, 1), ((0, 0), (1, 1), (1, 1)))
+  return m.reshape(mask.shape[0], 64)
 K_DIM = 3  # placeholder crop meta (unused by a geometry-free WM; constant input to k_emb)
 
 
@@ -83,6 +98,7 @@ class Testbed(bop_run.TestbedSE3):
 
   def __init__(self, a, exp_path, setup=True):
     assert a.den_mode in MODES, a.den_mode
+    self.ft = a.den_mode in FT
     super().__init__(a, exp_path, setup=setup)
 
   # --- model + caches ---
@@ -100,18 +116,33 @@ class Testbed(bop_run.TestbedSE3):
     self.train_split = TokenSplit(self.cache, "train")
     syms = load_symmetries(os.path.join(D, "bop_datasets/tless/models_eval/models_info.json"))
     self.bank = prt.TlessBank(self.train_split, np.arange(len(self.train_split.obj)), syms, wa.lam, wa.max_sym)
-    model = RetDenoiser(mode=self.a.den_mode, gate_t0=self.a.timesteps // 2, dim=self.a.dit_dim, depth=self.a.dit_depth, wm_dim=wa.dim,
-                        wm_depth=wa.depth, wm_geo=False, crop_fn=no_crop)
+    model = RetDenoiser(mode=self.a.den_mode.replace("_ft", ""), gate_t0=self.a.timesteps // 2, dim=self.a.dit_dim,
+                        depth=self.a.dit_depth, wm_dim=wa.dim, wm_depth=wa.depth, wm_geo=False, crop_fn=no_crop, ft=self.ft)
     n = 2
     z, e, v3, k = jnp.zeros((n, 64, 384)), jnp.tile(jnp.eye(3), (n, 1, 1)), jnp.zeros((n, 3)), jnp.zeros((n, K_DIM))
     params = unfreeze(model.init(jax.random.PRNGKey(self.a.seed), jnp.zeros((n, 6)), e, v3, jnp.zeros((n, 1)), z, e, v3,
-                                 k, z, jnp.ones((n, 64)), k))
+                                 k, z, jnp.ones((n, 64)), k, image=jnp.zeros((n, 224, 224, 3)) if self.ft else None))
     src = flax.serialization.msgpack_restore(open(os.path.join(self.a.wm_dir, "params.msgpack"), "rb").read())["params"]
     shapes = lambda p: jax.tree_util.tree_map(np.shape, p)
     assert shapes(src) == shapes(params["params"]["wm"]), "world model checkpoint does not match RetPoseModel"
     params["params"]["wm"] = jax.tree_util.tree_map(jnp.asarray, src)
+    if self.ft:
+      dino = flax.serialization.msgpack_restore(open(os.path.join(D, "dinov2_vits14_224.msgpack"), "rb").read())["params"]
+      for name in ("dino", "dino_frozen"):
+        assert shapes(dino) == shapes(params["params"][name]), "DINOv2 checkpoint does not match"
+        params["params"][name] = jax.tree_util.tree_map(jnp.asarray, dino)
     params["batch_stats"] = {}
     return model, FrozenDict(params)
+
+  def create_optimizer_and_lr(self):
+    optim, lr = super().create_optimizer_and_lr()
+    if not self.ft:
+      return optim, lr
+    # trainable backbone at lr x bb_lr_mult; the frozen DINOv2 copy and the world model get no update at all
+    bb = optax.adamw(learning_rate=lambda s: self.a.bb_lr_mult * lr(s))
+    label = lambda path, _: {"dino": "bb", "dino_frozen": "frozen", "wm": "frozen"}.get(path[0].key, "main")
+    labels = lambda p: jax.tree_util.tree_map_with_path(label, p)
+    return optax.multi_transform({"main": optim, "bb": bb, "frozen": optax.set_to_zero()}, labels), lr
 
   def _poses_fn(self):
     lm = self.lie_metrics
@@ -131,6 +162,9 @@ class Testbed(bop_run.TestbedSE3):
   # --- train ---
 
   def create_train_dataset(self):
+    if self.ft:  # LiePose's own image pipeline (augmented crops, visible masks)
+      assert not self.a.train_objs, "train_objs is for the token-cache modes"
+      return super().create_train_dataset()
     return TokenTrainData(self.train_split, self.a.batch_size, self.a.seed, self.a.train_objs)
 
   def create_get_flat_batch_train_fn(self):
@@ -139,14 +173,25 @@ class Testbed(bop_run.TestbedSE3):
     d = self.train_split
 
     def get_flat_batch_train(seed, batch, n_slices=256):
+      if self.ft:  # images go to the backbones once per image (masked as the cache), not once per slice
+        batch = dict(batch)
+        mask = np.asarray(batch["mask"], np.float32)
+        image = np.asarray(batch["image"], np.float32) * mask
+        batch["image"], batch["mask"] = np.zeros((len(image), 1, 1, 3), np.float32), np.ones((len(image), 1, 1, 1), np.float32)
+        obj, src = np.asarray(batch["object_id"]), np.asarray(batch["index"])
+      else:
+        row = batch["row"]
+        obj, src = d.obj[row], d.index[row]
       b = base(seed, batch, n_slices=n_slices)
       b.pop("img", None)
-      row = batch["row"]
-      s = b["rt"].shape[0] // len(row)
+      s = b["rt"].shape[0] // len(src)
       Rg, tg = map(np.asarray, poses(b["rt"]))
-      zr, Rr, tr = self._refs(np.repeat(d.obj[row], s), Rg, tg, np.repeat(d.index[row], s))
-      b.update(Rg=jnp.asarray(Rg), tg=jnp.asarray(tg / self.t_scale), zr=jnp.asarray(zr), Rr=jnp.asarray(Rr),
-               tr=jnp.asarray(tr), tok=jnp.asarray(d.tokens[row]), fg=jnp.asarray(d.fg[row]))
+      zr, Rr, tr = self._refs(np.repeat(obj, s), Rg, tg, np.repeat(src, s))
+      b.update(Rg=jnp.asarray(Rg), tg=jnp.asarray(tg / self.t_scale), zr=jnp.asarray(zr), Rr=jnp.asarray(Rr), tr=jnp.asarray(tr))
+      if self.ft:
+        b.update(image=jnp.asarray(image), fg=mask_fg(jnp.asarray(mask[..., 0])))
+      else:
+        b.update(tok=jnp.asarray(d.tokens[row]), fg=jnp.asarray(d.fg[row]))
       return b
 
     return get_flat_batch_train
@@ -158,12 +203,18 @@ class Testbed(bop_run.TestbedSE3):
     def update_fn(state, batch):
       def loss_fn(params):
         t = batch["t"].reshape((-1, 1)).astype(jnp.float32)
-        s = batch["rt"].shape[0] // batch["tok"].shape[0]
-        z_obs = jnp.repeat(batch["tok"].astype(jnp.float32), s, 0)
+        s = batch["rt"].shape[0] // batch["fg"].shape[0]
+        z_ext = None
+        if "image" in batch:
+          z_obs, z_ext = model.apply({"params": params}, batch["image"], method=RetDenoiser.encode)
+          z_ext = jnp.repeat(z_ext, s, 0)
+        else:
+          z_obs = batch["tok"].astype(jnp.float32)
+        z_obs = jnp.repeat(z_obs, s, 0)
         w = jnp.repeat(FG_FLOOR + batch["fg"], s, 0)
         k = jnp.zeros((batch["rt"].shape[0], K_DIM))
         mu = model.apply({"params": params}, batch["rt"], batch["Rg"], batch["tg"], t, batch["zr"].astype(jnp.float32),
-                         batch["Rr"], batch["tr"], k, z_obs, w, k, method=RetDenoiser.noise)
+                         batch["Rr"], batch["tr"], k, z_obs, w, k, None, z_ext, method=RetDenoiser.noise)
         return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(batch["zt"], mu))
 
       loss, grads = jax.value_and_grad(loss_fn)(state.params)
@@ -185,20 +236,26 @@ class Testbed(bop_run.TestbedSE3):
     t_scale = jnp.asarray(self.t_scale)
 
     @jax.jit
-    def step(key, rt, t, tp, Rg, tg, zr, Rr, tr, z_obs, w):
+    def step(key, rt, t, tp, Rg, tg, zr, Rr, tr, z_obs, w, z_ext):
       B = rt.shape[0]
       key, k = jax.random.split(key)
       kz = jnp.zeros((B, K_DIM))
       mu = model.apply(params, rt, Rg, tg / t_scale, jnp.full((B, 1), t, jnp.float32), zr.astype(jnp.float32), Rr, tr, kz,
-                       z_obs, w, kz, method=RetDenoiser.noise)
+                       z_obs, w, kz, None, z_ext, method=RetDenoiser.noise)
       _, rt = p_fn(jax.random.split(k, B), mu, rt, jnp.full((B,), t), jnp.full((B,), tp))
       return key, rt
 
-    def sample(key, rt, obj, tok, fg):
+    encode = jax.jit(lambda image: model.apply(params, image, method=RetDenoiser.encode))
+
+    def sample(key, rt, obj, tok, fg, image=None):
+      """tok: the cached tokens, or (ft) None with the masked crop images, encoded once per image"""
+      z_ext = None
+      if image is not None:
+        tok, z_ext = encode(image)
       for t, tp in seq:
         Rg, tg = poses(rt)
         zr, Rr, tr = self._refs(obj, np.asarray(Rg), np.asarray(tg), np.full(len(rt), -1))
-        key, rt = step(key, rt, jnp.int32(t), jnp.int32(tp), Rg, tg, zr, Rr, tr, tok, fg)
+        key, rt = step(key, rt, jnp.int32(t), jnp.int32(tp), Rg, tg, zr, Rr, tr, tok, fg, z_ext)
       return rt
 
     return sample
@@ -223,8 +280,13 @@ class Testbed(bop_run.TestbedSE3):
       assert (obs.obj[rows] == np.asarray(batch["object_id"])).all(), "token cache misaligned with the test dataset"
       key, k1, k2 = jax.random.split(key, 3)
       t0 = time.time()
-      rt = sample(k2, prior(jax.random.split(k1, len(rows))), obs.obj[rows],
-                  jnp.asarray(obs.tokens[rows], jnp.float32), jnp.asarray(FG_FLOOR + obs.fg[rows]))
+      if self.ft:  # the test crop itself (image x visible mask, as the cache), weights from its mask
+        mask = np.asarray(batch["mask"], np.float32)
+        image = jnp.asarray(np.asarray(batch["image"], np.float32) * mask)
+        rt = sample(k2, prior(jax.random.split(k1, len(rows))), obs.obj[rows], None, FG_FLOOR + mask_fg(jnp.asarray(mask[..., 0])), image)
+      else:
+        rt = sample(k2, prior(jax.random.split(k1, len(rows))), obs.obj[rows],
+                    jnp.asarray(obs.tokens[rows], jnp.float32), jnp.asarray(FG_FLOOR + obs.fg[rows]))
       rt = jax.block_until_ready(rt)
       dt = time.time() - t0
       seq_rt = self.post_process(rt)[None, :, None]  # (time=1, b, slices=1, 7) wxyz_xyz, final sample
@@ -247,7 +309,8 @@ def build_explorations():
   e.n_slices = [16]
   e.ckpt_steps = [25000]
   e.test_limit = [None]
-  e.train_objs = [None]  # held-out-object test: train on these objects only (see the module docstring)
+  e.train_objs = [None]
+  e.bb_lr_mult = [0.1]  # *_ft: backbone learning rate relative to the denoiser's  # held-out-object test: train on these objects only (see the module docstring)
   return e
 
 
