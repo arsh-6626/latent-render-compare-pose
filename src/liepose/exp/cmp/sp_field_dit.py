@@ -75,6 +75,7 @@ class FieldDenoiser(nn.Module):
   dim: int = 256
   depth: int = 4
   heads: int = 8
+  use_k: bool = True  # False (T-LESS): no crop conditioning, the crop meta enters the render only (as LiePose / tless_dit)
 
   @nn.compact
   def __call__(self, rt, t, k, z_obs, w, z_hat, opa, h, keep=None, z_ext=None):
@@ -100,7 +101,9 @@ class FieldDenoiser(nn.Module):
     x = nn.Dense(self.dim, name="tok_in")(x) + self.param("pos", nn.initializers.normal(0.02), (1, x.shape[1], self.dim))
     if z_ext is not None:  # *_ft: the trainable backbone's tokens (already projected to dim)
       x = x + z_ext
-    c = PosEmbed(256, self.dim, True, name="t_emb")(t) + PosEmbed(256, self.dim, False, name="g_emb")(rt) + nn.Dense(self.dim, name="k_emb")(crop_feat(k))
+    c = PosEmbed(256, self.dim, True, name="t_emb")(t) + PosEmbed(256, self.dim, False, name="g_emb")(rt)
+    if self.use_k:
+      c = c + nn.Dense(self.dim, name="k_emb")(crop_feat(k))
     c = nn.Dense(self.dim, name="c_mlp")(jax.nn.silu(c))
     x = jnp.concatenate([c[:, None], x], 1)
     for i in range(self.depth):
@@ -113,9 +116,10 @@ class FtFieldDenoiser(nn.Module):
   mode: str = "field_full_lat"
   dim: int = 256
   depth: int = 4
+  use_k: bool = True
 
   def setup(self):
-    self.den = FieldDenoiser(mode=self.mode, dim=self.dim, depth=self.depth)
+    self.den = FieldDenoiser(mode=self.mode, dim=self.dim, depth=self.depth, use_k=self.use_k)
     self.dino_frozen = DinoV2()
     self.dino = DinoV2()
     self.ext_ln = nn.LayerNorm()
