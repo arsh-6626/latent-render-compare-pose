@@ -6,6 +6,10 @@
 # part of the experiment path and sets the lr schedule, so STEPS=400000 is a separate run, not an extension of 100k.
 #   qsub -N ffl-ft   -v MODE=field_full_lat_ft field_ft_scai.pbs
 #   qsub -N ffn-ft   -v MODE=field_nowm_ft     field_ft_scai.pbs
+# dtu004 standard queue (reads dtu001's data, writes under OUT; old CentOS-7 nodes can't run the env):
+#   qsub -q standard -l select=1:ncpus=12:ngpus=1:mem=96gb:centos=icelake -l walltime=120:00:00 \
+#     -o /scratch/hpc/visitor/dtu004.visitor/larp/logs/ -N ffl-ft \
+#     -v MODE=field_full_lat_ft,NW=10,OUT=/scratch/hpc/visitor/dtu004.visitor/larp field_ft_scai.pbs
 #PBS -P hpc.dtu.kavinder
 #PBS -q scai_q
 #PBS -l select=1:ncpus=16:ngpus=1:mem=128gb
@@ -35,11 +39,11 @@ cp -r $P/data/speedplusv2/synthetic/images $T/speedplusv2/synthetic/ || exit 1
 
 export DATADIR=$T/data SPEEDPLUS_ROOT=$T/speedplusv2
 export PYTHONPATH=$P/code_larp/src:$P/code_larp/lib/bop_toolkit
-export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$P/xdg_cache
+export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$T/xdg_cache
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
-mkdir -p $P/logs/experiments/speedplus-field-ft
+O=${OUT:-$P/logs}; mkdir -p $O/experiments/speedplus-field-ft
 
-$P/env/liepose/bin/python -u -m liepose.exp.cmp.sp_field_dit --root_path $P/logs/experiments/speedplus-field-ft "den_mode=[$MODE]" \
-  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[${STEPS:-100000}]" "batch_size=[64]" "n_slices=[64]" "num_workers=[14]" \
-  >> $P/logs/field_ft_${MODE}_${STEPS:-100000}.log 2>&1
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.sp_field_dit --root_path $O/experiments/speedplus-field-ft "den_mode=[$MODE]" \
+  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[${STEPS:-100000}]" "batch_size=[64]" "n_slices=[64]" "num_workers=[${NW:-14}]" \
+  >> $O/logs/field_ft_${MODE}_${STEPS:-100000}.log 2>&1
 echo "FIELD_FT_DONE $?"

@@ -1,0 +1,41 @@
+#!/bin/bash
+# T-LESS latent render-and-compare (liepose.exp.cmp.tless_dit), standard queue (120 h, one job per run, no resubmits);
+# either account: reads dtu001's data and code_larp, writes under W (default: dtu001's logs). WM tless_ret_v1, BOP19 test.
+#   MODE  dit / dit_nowm / dit_in2 / dit_in3 / dit_hi / dit_lo (frozen tokens) or dit_ft / dit_nowm_ft (trained backbone:
+#         needs bop_datasets/tless/train_pbr + train_primesense on dtu001)
+#   STEPS (100000), SEED (42), NW data workers (8)
+#   qsub -N tl-in2 -v MODE=dit_in2 tless_dit_std.pbs
+#   dtu004: qsub -o /scratch/hpc/visitor/dtu004.visitor/larp/logs/ -N tl-s43 \
+#             -v MODE=dit,SEED=43,W=/scratch/hpc/visitor/dtu004.visitor/larp tless_dit_std.pbs
+#PBS -P hpc.dtu.kavinder
+#PBS -q standard
+#PBS -l select=1:ncpus=12:ngpus=1:mem=96gb:centos=icelake
+#PBS -l walltime=120:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+W=${W:-$P/logs}
+cd $P/code_larp
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+T=${TMPDIR:-/tmp}/tl_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+df -h $T | tail -1
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/tless_tokens
+if ! cp -rL $P/data/tless_tokens $T/data/; then  # local disk too small: hold it in RAM
+  rm -rf $T/data/tless_tokens; mkdir -p /dev/shm/tl_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/tl_${PBS_JOBID%%.*}" EXIT
+  cp -rL $P/data/tless_tokens /dev/shm/tl_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/tl_${PBS_JOBID%%.*}/tless_tokens $T/data/
+fi
+export DATADIR=$T/data
+export PATH=$P/env/liepose/bin:$PATH  # bop_toolkit error scripts run as `python` subprocesses
+export PYTHONPATH=$P/code_larp/src:$P/code_larp/lib/bop_toolkit
+export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$T/xdg_cache CACHE_ROOT_PATH=$T/bop_cache
+cp -r $P/data/bop_cache $T/bop_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy
+mkdir -p $W/experiments/tless-lrc $W/logs
+S=${STEPS:-100000}
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.tless_dit --root_path $W/experiments/tless-lrc "den_mode=[$MODE]" \
+  "wm_dir=[$P/data/probe/tless_ret_v1]" "train_steps=[$S]" "seed=[${SEED:-42}]" "num_workers=[${NW:-8}]" \
+  >> $W/logs/tless_${MODE}_${S}_s${SEED:-42}.log 2>&1
+echo "TLESS_DIT_DONE $?"
