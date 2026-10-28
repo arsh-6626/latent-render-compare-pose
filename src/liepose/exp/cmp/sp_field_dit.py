@@ -15,6 +15,12 @@ den_mode (what the denoiser sees per token):
                     tokens, never decoded into coordinates / depth): the world model adds its 3D knowledge in
                     latent space; h depends on the hypothesis only, not on the observation.
   field_nowm        [z_obs, w] only (the control: the same denoiser and budget without the world model)
+  field_full_lat    field_full + h(g_t) (the world model's latent added to the full input)
+  field_drop        soft bottleneck: field_full's raw channels [z_obs, z_hat, z_hat - z_obs, w] plus field_bneck's
+                    comparison signals; in training the raw channels of a sample are zeroed with probability
+                    --drop_p, so the denoiser must learn to pose from the comparison alone too; never at test
+Results (frozen DINOv2, 100k, official ESA lightbox / sunlamp): field_full 0.742 / 0.687, field_nowm 0.827 / 0.743,
+field_bneck 1.516 / 1.507, field_bneck_lat 1.318 / 1.326.
 Training / test / scoring as sp_dit.py (token caches, official ESA on lightbox / sunlamp). Inference reads the test
 crop's tokens and box meta and the frozen field; GT only in the scorer.
 
@@ -44,7 +50,7 @@ from liepose.utils.config import get_args, load_config_from_args, save_config
 
 from . import sp_dit
 
-MODES = ("field_full", "field_bneck", "field_bneck_lat", "field_nowm")
+MODES = ("field_full", "field_bneck", "field_bneck_lat", "field_nowm", "field_full_lat", "field_drop")
 
 
 def local_corr(z_obs, z_hat, grid=8):
@@ -65,14 +71,20 @@ class FieldDenoiser(nn.Module):
   heads: int = 8
 
   @nn.compact
-  def __call__(self, rt, t, k, z_obs, w, z_hat, opa, h):
+  def __call__(self, rt, t, k, z_obs, w, z_hat, opa, h, keep=None):
     """rt (N, 6) noisy pose, t (N, 1), k (N, 6) crop meta, z_obs (N, 64, D), w (N, 64), the field's z_hat (N, 64, D),
     opa (N, 64), h (N, 64, H) -> noise (N, 6)"""
     ln = lambda name, x: nn.LayerNorm(name=name)(x)
     cmp = jnp.concatenate([((z_hat * z_obs).sum(-1) / (jnp.linalg.norm(z_hat, axis=-1) * jnp.linalg.norm(z_obs, axis=-1) + 1e-6))[..., None],
                            ((z_hat - z_obs) ** 2).mean(-1, keepdims=True), opa[..., None], local_corr(z_obs, z_hat)], -1)
+    full = lambda: jnp.concatenate([ln("ln_obs", z_obs), ln("ln_hat", z_hat), ln("ln_diff", z_hat - z_obs), w[..., None]], -1)
     if self.mode == "field_full":
-      x = jnp.concatenate([ln("ln_obs", z_obs), ln("ln_hat", z_hat), ln("ln_diff", z_hat - z_obs), w[..., None]], -1)
+      x = full()
+    elif self.mode == "field_full_lat":
+      x = jnp.concatenate([full(), ln("ln_lat", h)], -1)
+    elif self.mode == "field_drop":  # keep (N,) in {0, 1}: 0 = the raw channels dropped (training only)
+      raw = full() * (jnp.ones(z_obs.shape[:1]) if keep is None else keep)[:, None, None]
+      x = jnp.concatenate([raw, cmp], -1)
     elif self.mode == "field_nowm":
       x = jnp.concatenate([ln("ln_obs", z_obs), w[..., None]], -1)
     elif self.mode == "field_bneck":
@@ -142,9 +154,13 @@ class Testbed(sp_dit.Testbed):
       z_obs = jnp.repeat(batch["tok"].astype(jnp.float32), s, 0)
       w = jnp.repeat(FG_FLOOR + batch["fg"], s, 0)
       z_hat, opa, h = self._render(batch["Rg"], batch["tg"], batch["kg"], z_obs)
+      keep = None
+      if self.a.den_mode == "field_drop":  # per image (all its slices), from the step's noise draws (no extra rng state)
+        u = jax.random.uniform(jax.random.fold_in(jax.random.PRNGKey(0), state.step), (batch["tok"].shape[0],))
+        keep = jnp.repeat((u >= self.a.drop_p).astype(jnp.float32), s, 0)
 
       def loss_fn(params):
-        mu = model.apply({"params": params}, batch["rt"], t, batch["kg"], z_obs, w, z_hat, opa, h)
+        mu = model.apply({"params": params}, batch["rt"], t, batch["kg"], z_obs, w, z_hat, opa, h, keep)
         return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(batch["zt"], mu))
 
       loss, grads = jax.value_and_grad(loss_fn)(state.params)
@@ -182,6 +198,7 @@ def build_explorations():
   e = sp_dit.build_explorations()
   e.den_mode = ["field_bneck"]
   e.field_dir = [None]
+  e.drop_p = [0.5]  # field_drop: probability of dropping a training image's raw channels
   return e
 
 
