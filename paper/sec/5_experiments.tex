@@ -43,7 +43,8 @@ number of training images. Published numbers are rounded to one decimal. $^\dagg
 computed by us. The GDRNPP numbers that~\cite{hsiao2024liepose} compares with are GDRNPP's leaderboard entry with one model per
 dataset and detected boxes (67.6 / 75.1 / 90.2), not a ground-truth-crop result. Published rows train on PBR and
 real images; $^\S$per-metric recalls from the BOP leaderboard~\cite{bopleaderboard}, as the papers report AR only (GDRNPP) or no BOP
-numbers (ZebraPose). \TODO{YCB-V of our rows.}}
+numbers (ZebraPose). $^\ddagger$Encoder trained (a frozen copy gives the world model's comparison space).
+\TODO{YCB-V of our rows.}}
 \label{tab:bop}
 \small
 \setlength{\tabcolsep}{4.2pt}
@@ -68,6 +69,8 @@ LiePose (our training)              & ResNet-34 & GT & 1 & 63.1 & 65.7 & 92.3 & 
 Control (no world model)            & DINOv2-S  & GT & 1 & 30.5 & 34.0 & 78.3 & 47.6 & \pend & \pend & \pend & \pend \\ % EMA; logs/tless_test/lrc_dit_nowm_400k
 \method                             & DINOv2-S  & GT & 1 & 38.4 & 42.3 & 82.4 & 54.3 & \pend & \pend & \pend & \pend \\ % EMA; logs/tless_test/lrc_dit_400k
 \method + selection                 & DINOv2-S  & GT & $N$ & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+Control, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % 100k, tl-nowm-ft (dtu001, running)
+\method, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % 100k, local tless-lrc-ft dit_ft (running)
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -80,7 +83,8 @@ ground-truth pose; Det = detected. The oracle row selects with the ground truth 
 translation separately, as the competition server does; $^\ast$floors applied jointly as in~\cite{park2022speedplus} (at most 0.005 lower per
 image). --: not reported in metres. Published $e_q$ rounded to $0.1^\circ$. EagerNet uses test-time augmentation and several hypotheses.
 $^\P$Best submission of each team per category on the final leaderboard~\cite{kelvinsspec2021}, $e_q$ as tabulated
-in~\cite{park2024spnv3}. \TODO{fill our rows.}}
+in~\cite{park2024spnv3}. Consensus: of 16 samples, the one with the most others within $10^\circ$ (no ground truth, no
+world model). $^\ddagger$Encoder trained (a frozen copy gives the world model's comparison space). \TODO{fill the remaining rows.}}
 \label{tab:speedplus}
 \small
 \setlength{\tabcolsep}{5pt}
@@ -105,10 +109,17 @@ SPEC2021, lava1302~\cite{park2023spec2021}$^\P$       & -- & 1 & -- & 6.7 & 0.16
 \midrule
 \multicolumn{9}{@{}l}{\emph{Trained by us, synthetic only, GT keypoint box, matched number of training images}} \\
 LiePose (our training)                       & GT  & 1 & 0.183 & 11.6 & 0.234 & 0.175 & 14.9 & 0.289 \\ % EMA (tab:supp-ema); logs/speedplus_test/liepose_se3_400k
+LiePose (our training) + consensus           & GT  & 16 & 0.170 & 7.8 & 0.165 & 0.163 & 11.2 & 0.223 \\ % results/speedplus_test/consensus/liepose_400k_{lightbox,sunlamp}.json
 Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\
 \method, retrieval world model               & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\
 \method, + geometry tokens                   & GT  & 1 & 0.317 & 37.0 & 0.701 & 0.275 & 38.3 & 0.716 \\ % EMA; dtu004 speedplus-lrc/...dit+wm=sp_geo_v1/test_400000/esa.json
 \method, + geometry tokens + selection       & GT  & $N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
+\midrule
+\multicolumn{9}{@{}l}{\emph{Trained by us, trained encoder$^\ddagger$, retrieval world model; intermediate checkpoint (100k of the 400k schedule)}} \\
+Control (no world model)                     & GT  & 1 & 0.159 & 16.0 & 0.306 & 0.215 & 21.8 & 0.417 \\ % results/speedplus_test/ft400_eval100k.txt (dit_nowm_ft, 100k)
+\quad + consensus                            & GT  & 16 & 0.144 & 10.3 & 0.204 & 0.202 & 16.1 & 0.314 \\ % consensus/ft_nowm_100k_*.json
+\method                                      & GT  & 1 & 0.154 & 14.5 & 0.280 & 0.204 & 19.7 & 0.379 \\ % ft400_eval100k.txt (dit_ft, 100k)
+\quad + consensus                            & GT  & 16 & 0.128 & 8.4 & 0.168 & 0.184 & 12.9 & 0.255 \\ % consensus/ft_wm_100k_*.json
 \midrule
 \color{gray}Oracle selection among the same $N$ (diagnostic) & \color{gray}GT & \color{gray}$N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
 \bottomrule
@@ -118,7 +129,7 @@ Control (no world model)                     & GT  & 1 & \pend & \pend & \pend &
 \begin{table}[t]
 \centering
 \caption{\textbf{SYMSOL-T} (mean rotation error $R$ in degrees, mean translation error $t$; lower is better). \emph{Input}: full image
-or crop around the rendered object. \TODO{fill.}}
+or crop around the rendered object. \TODO{fill the LiePose rows.}}
 \label{tab:symsolt}
 \scriptsize
 \setlength{\tabcolsep}{2.0pt}
@@ -134,8 +145,8 @@ LiePose~\cite{hsiao2024liepose}          & full & 0.59 & 0.016 & 0.58 & 0.011 & 
 \midrule
 LiePose (ours)                           & full & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
 LiePose (ours)                           & crop & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
-Control                                  & crop & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
-\method                                  & crop & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+Control                                  & crop & 1.72 & 0.048 & 1.03 & 0.028 & 0.84 & 0.022 & 1.90 & 0.045 & 0.79 & 0.031 \\ % results/symsolt400k/dit_nowm_summary.json (400k x 32, 64 noisy poses)
+\method                                  & crop & 1.35 & 0.039 & 0.90 & 0.022 & 0.57 & 0.016 & 1.53 & 0.032 & 0.70 & 0.020 \\ % results/symsolt400k/dit_summary.json
 \bottomrule
 \end{tabular}
 \end{table}
@@ -167,7 +178,8 @@ of the crop is separated from the effect of the world model.}
 \centering
 \caption{\textbf{World-model variants.} Same denoiser and training budget (100k steps $\times$ batch 32, 16 noisy poses per image;
 \cref{tab:supp-budget}); one sample. T-LESS: AR (\%, $\uparrow$); SPEED+: score $S$ on
-lightbox ($\downarrow$); SYMSOL-T: mean rotation error over shapes (deg, $\downarrow$). \TODO{fill.}}
+lightbox ($\downarrow$); SYMSOL-T: mean rotation error over shapes (deg, $\downarrow$). $^\star$The field rows use the field's
+denoiser (comparison statistics and opacity as extra channels), with its own control. \TODO{fill.}}
 \label{tab:abl-wm}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -180,6 +192,14 @@ Learned template, no reference                     & \pend & \pend & \pend \\
 Retrieved reference                                & 54.7 & 0.734 & \pend \\ % 100k: lrc_dit_100k; sp dit sp_ret_v1
 \quad + geometry tokens                            & --    & 0.717 & \pend \\ % 100k: sp dit sp_geo_v1
 \quad + roll / render-pair targets                 & --    & --    & \pend \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Feature field (no retrieval), its own denoiser$^\star$}} \\
+None (control, $\zhat{=}0$)                        & 40.5 & 0.827 & \pend \\ % tless-field field_nowm 100k (dtu001); results/speedplus_field_dit/frozen_100k_full_nowm.txt
+Feature field                                      & \pend & 0.742 & \pend \\ % frozen_100k_full_nowm.txt (field_full)
+\quad + field latent                               & \pend & 0.705 & \pend \\ % frozen_100k_lat_drop.txt (field_full_lat); T-LESS run stopped before its test
+\quad + field latent, raw channels dropped ($p{=}0.5$) & \pend & 0.758 & \pend \\ % frozen_100k_lat_drop.txt (field_drop)
+\quad comparison statistics only (bottleneck)      & \pend & 1.516 & \pend \\ % frozen_100k_bneck.txt (field_bneck)
+\quad comparison statistics + field latent         & \pend & 1.318 & \pend \\ % frozen_100k_bneck.txt (field_bneck_lat)
 \color{gray}Oracle $\zhat$: GT-view tokens (diag.)  & \pend & \pend & \pend \\
 \bottomrule
 \end{tabular}
@@ -198,10 +218,10 @@ Variant & T-LESS & SPEED+ \\
 \midrule
 $[\zobs]$ (control)                                        & 41.2 & 0.782 \\
 $[\zobs,\zhat]$                                            & 53.7 & 0.716 \\ % abl_dit_in2_100k
-$[\zobs,\zhat,\zhat-\zobs]$                                & 54.6 & 0.718 \\ % abl_dit_in3_100k
+$[\zobs,\zhat,\zhat-\zobs]$                                & 54.6 & 0.718 \\ % abl_dit_in3_100k; rerun 2026-10-28 (code_larp, dtu001): 54.3
 $[\zobs,\zhat,\zhat-\zobs,w]$ (\method)                     & 54.7 & 0.734 \\
 \midrule
-Comparison only for $t\ge t_0$ (high noise)      & 40.7 & 0.774 \\ % abl_dit_hi_100k
+Comparison only for $t\ge t_0$ (high noise)      & 40.7 & 0.774 \\ % abl_dit_hi_100k; rerun 2026-10-28: 40.3 (in2 53.7, lo 52.4 reproduce)
 Comparison only for $t< t_0$ (low noise)         & 52.4 & 0.755 \\ % abl_dit_lo_100k
 Energy only (control + selection)                & \pend & \pend \\
 \midrule
@@ -267,7 +287,7 @@ SYMSOL-T after the evaluation set is rebuilt from training images (\cref{sec:sup
 \cmidrule(lr){2-4}
 & $1$--$3^\circ$ & $3$--$10^\circ$ & $10$--$30^\circ$ & translation \\
 \midrule
-T-LESS   & \pend & \pend & \pend & \pend \\
+T-LESS   & 0.53 & 0.64 & 0.92 & 0.60 \\ % results/probe/tless_ret_v1/ceiling.json val (500 held-out training crops, 16 perturbations per bin)
 YCB-V    & \pend & \pend & \pend & \pend \\
 SPEED+ (retrieval)   & 0.54 & 0.64 & 0.90 & \pend \\
 SPEED+ (+ geometry)  & 0.55 & 0.70 & 0.95 & \pend \\ % SPEED+ rows: synthetic val, 3000 crops x 2 perturbations per bin, refs retrieved at each pose (scripts/speedplus/wm_disc.py); val_aug: 0.53/0.62/0.85 and 0.53/0.66/0.89

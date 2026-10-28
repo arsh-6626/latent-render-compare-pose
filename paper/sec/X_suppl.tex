@@ -274,8 +274,8 @@ Model & steps $\times$ batch & noisy poses & T-LESS & SPEED+ & SYMSOL-T \\
 \midrule
 Control & 100k $\times$ 32 & 16 & 41.2 & 0.782 & \pend \\ % SPEED+: retrieval WM runs
 \method & 100k $\times$ 32 & 16 & 54.7 & 0.734 & \pend \\
-Control & 400k $\times$ 64 (32) & 64 & 47.6 & \pend & \pend \\ % SPEED+ 400k running
-\method & 400k $\times$ 64 (32) & 64 & 54.3 & \pend & \pend \\ % SPEED+ 400k (retrieval) running
+Control & 400k $\times$ 64 (32) & 64 & 47.6 & \pend & 1.26 \\ % SPEED+ 400k running; SYMSOL-T: results/symsolt400k/dit_nowm_summary.json (mean over shapes)
+\method & 400k $\times$ 64 (32) & 64 & 54.3 & \pend & 1.01 \\ % SPEED+ 400k (retrieval) running; SYMSOL-T: dit_summary.json
 \bottomrule
 \end{tabular}
 \end{table}
@@ -291,9 +291,10 @@ error = rotation error of the lowest-energy candidate, deg). \TODO{fill.}}
 \toprule
 Variant (T-LESS) & $1$--$3^\circ$ & $3$--$10^\circ$ & selection error \\
 \midrule
-Per-object learned template (no reference)  & \pend & \pend & \pend \\
+Per-object learned template (no reference)  & 0.59 & 0.77 & 13.7 \\ % results/probe/tless_v1_ceil/ceiling.json val (same candidates as tless_ret_v1)
 Retrieved reference, reconstruction loss only & \pend & \pend & \pend \\
-Retrieved reference, $\mathcal{L}_{\mathrm{WM}}$ (\method) & \pend & \pend & \pend \\
+Retrieved reference, $\mathcal{L}_{\mathrm{WM}}$ (\method) & 0.53 & 0.64 & 7.2 \\ % results/probe/tless_ret_v1/ceiling.json val
+Feature field, reconstruction loss (no reference) & 0.53 & 0.66 & 14.2 \\ % logs/probe/tl_field_v1 (dtu001) step 100k val; same rotation candidates, translations at the true 3D centre
 \quad without symmetric equivalents in the bank & \pend & \pend & \pend \\
 \quad bank restricted to other objects (held-out objects) & \pend & \pend & \pend \\
 \bottomrule
