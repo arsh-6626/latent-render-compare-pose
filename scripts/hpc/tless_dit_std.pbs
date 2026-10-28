@@ -16,7 +16,8 @@
 
 P=/scratch/hpc/visitor/dtu001.visitor/liepose
 W=${W:-$P/logs}
-cd $P/code_larp
+C=${CODE:-$P/code_larp}  # code dir (CODE: an account-local copy)
+cd $C
 hostname
 nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
 T=${TMPDIR:-/tmp}/tl_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
@@ -29,7 +30,7 @@ if ! cp -rL $P/data/tless_tokens $T/data/; then  # local disk too small: hold it
 fi
 export DATADIR=$T/data
 export PATH=$P/env/liepose/bin:$PATH  # bop_toolkit error scripts run as `python` subprocesses
-export PYTHONPATH=$P/code_larp/src:$P/code_larp/lib/bop_toolkit
+export PYTHONPATH=$C/src:$C/lib/bop_toolkit
 export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$T/xdg_cache CACHE_ROOT_PATH=$T/bop_cache
 cp -r $P/data/bop_cache $T/bop_cache
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy

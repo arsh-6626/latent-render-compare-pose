@@ -12,15 +12,16 @@
 
 P=/scratch/hpc/visitor/dtu001.visitor/liepose
 W=/scratch/hpc/visitor/dtu004.visitor/larp; mkdir -p $W/logs $W/experiments
-cd $P/code_larp
+C=${CODE:-$P/code_larp}  # code dir (CODE: an account-local copy)
+cd $C
 hostname
 nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
 T=${TMPDIR:-/tmp}/fd_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
 for f in $P/data/*; do ln -s $f $T/data/; done
 rm $T/data/speedplus_tokens; cp -rL $P/data/speedplus_tokens $T/data/ || exit 1
 export DATADIR=$T/data SPEEDPLUS_ROOT=$P/data/speedplusv2
-export PYTHONPATH=$P/code_larp/src:$P/code_larp/lib/bop_toolkit XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+export PYTHONPATH=$C/src:$C/lib/bop_toolkit XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
 $P/env/liepose/bin/python -u -m liepose.exp.cmp.sp_field_dit --root_path $W/experiments/speedplus-field "den_mode=[$MODE]" \
-  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[${STEPS:-100000}]" "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" \
+  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[${STEPS:-100000}]" "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" \
   >> $W/logs/fd_${MODE}${TAG}.log 2>&1
 echo "FIELD_DIT_DONE $?"
