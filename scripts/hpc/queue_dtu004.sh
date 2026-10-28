@@ -5,8 +5,8 @@
 #   queue_dtu004.sh   (job list below)
 P=/scratch/hpc/visitor/dtu001.visitor/liepose; W=/scratch/hpc/visitor/dtu004.visitor/larp
 LOG=/media/kavinder/hdd2/liepose_data/hpc/queue_dtu004.log; MAX=4
-JOBS=("fd400-full|MODE=field_full,STEPS=400000,BS=64,NS=64,TAG=_400k|train_steps=400000+seed=42+den_mode=field_full+field=sp_field_v1"
-      "fd400-nowm|MODE=field_nowm,STEPS=400000,BS=64,NS=64,TAG=_400k|train_steps=400000+seed=42+den_mode=field_nowm+field=sp_field_v1")
+JOBS=("fd400-nowm|MODE=field_nowm,STEPS=400000,BS=64,NS=64,TAG=_400k|train_steps=400000+seed=42+den_mode=field_nowm+field=sp_field_v1"
+      "fd400-lat|MODE=field_full_lat,STEPS=400000,BS=64,NS=64,TAG=_400k|train_steps=400000+seed=42+den_mode=field_full_lat+field=sp_field_v1")
 declare -A n
 while true; do
   st=$(timeout 120 ssh -o BatchMode=yes yashdeep@10.141.90.34 "ssh iitd-hpc 'source /etc/profile; qstat -u dtu004.visitor 2>/dev/null | tail -n +6 | awk \"{print \\\$4}\"; for e in $W/experiments/speedplus-field/*; do ls \$e/test_*/esa.json >/dev/null 2>&1 && echo DONE \$(basename \$e); done'" 2>/dev/null)
@@ -24,6 +24,7 @@ while true; do
       echo "$(date '+%F %T') submitted $name ($vars) -> $r [submit ${n[$name]}]" >> $LOG
     fi
   done
+  echo "$(date '+%F %T') poll: used=$used" >> $LOG
   [ "$all_done" = 1 ] && { echo "$(date '+%F %T') all runs have test results" >> $LOG; exit 0; }
   sleep 900
 done
