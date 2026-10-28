@@ -19,6 +19,10 @@ den_mode (what the denoiser sees per token):
   field_drop        soft bottleneck: field_full's raw channels [z_obs, z_hat, z_hat - z_obs, w] plus field_bneck's
                     comparison signals; in training the raw channels of a sample are zeroed with probability
                     --drop_p, so the denoiser must learn to pose from the comparison alone too; never at test
+  *_ft              any of the above with the backbone trained (as sp_dit.py dit_ft): LiePose's own augmented image crops
+                    instead of the token cache; a frozen DINOv2 copy gives z_obs (the field's comparison space, so the
+                    world model is unchanged) and a trainable copy (lr x bb_lr_mult) adds its 16 x 16 tokens (2 x 2 cells
+                    merged into channels, projected) to the denoiser's tokens; test crops from the crop shards' images.
 Results (frozen DINOv2, 100k, official ESA lightbox / sunlamp): field_full 0.742 / 0.687, field_nowm 0.827 / 0.743,
 field_bneck 1.516 / 1.507, field_bneck_lat 1.318 / 1.326.
 Training / test / scoring as sp_dit.py (token caches, official ESA on lightbox / sunlamp). Inference reads the test
@@ -42,15 +46,17 @@ from liepose.exp.jepa_probe.comparator import load_field
 from liepose.exp.jepa_probe.probe import AdaLNBlock
 from liepose.exp.jepa_probe.probe_frozen import FG_FLOOR
 from liepose.exp.jepa_probe.probe_tless import TokenSplit
-from liepose.exp.jepa_probe.sp_geometry import crop_feat, crop_meta
+from liepose.exp.jepa_probe.sp_geometry import crop_feat, crop_k, crop_meta
 from liepose.exp.jepa_probe.wm_eval import app_stats
 from liepose.exp.model import PosEmbed
+from liepose.models.dinov2 import DinoV2, pool2
 from liepose.exp.speedplus import run as sp_run
 from liepose.utils.config import get_args, load_config_from_args, save_config
 
 from . import sp_dit
 
-MODES = ("field_full", "field_bneck", "field_bneck_lat", "field_nowm", "field_full_lat", "field_drop")
+BASE_MODES = ("field_full", "field_bneck", "field_bneck_lat", "field_nowm", "field_full_lat", "field_drop")
+MODES = BASE_MODES + tuple(m + "_ft" for m in BASE_MODES)
 
 
 def local_corr(z_obs, z_hat, grid=8):
@@ -71,7 +77,7 @@ class FieldDenoiser(nn.Module):
   heads: int = 8
 
   @nn.compact
-  def __call__(self, rt, t, k, z_obs, w, z_hat, opa, h, keep=None):
+  def __call__(self, rt, t, k, z_obs, w, z_hat, opa, h, keep=None, z_ext=None):
     """rt (N, 6) noisy pose, t (N, 1), k (N, 6) crop meta, z_obs (N, 64, D), w (N, 64), the field's z_hat (N, 64, D),
     opa (N, 64), h (N, 64, H) -> noise (N, 6)"""
     ln = lambda name, x: nn.LayerNorm(name=name)(x)
@@ -92,6 +98,8 @@ class FieldDenoiser(nn.Module):
     else:  # field_bneck_lat
       x = jnp.concatenate([cmp, ln("ln_lat", h)], -1)
     x = nn.Dense(self.dim, name="tok_in")(x) + self.param("pos", nn.initializers.normal(0.02), (1, x.shape[1], self.dim))
+    if z_ext is not None:  # *_ft: the trainable backbone's tokens (already projected to dim)
+      x = x + z_ext
     c = PosEmbed(256, self.dim, True, name="t_emb")(t) + PosEmbed(256, self.dim, False, name="g_emb")(rt) + nn.Dense(self.dim, name="k_emb")(crop_feat(k))
     c = nn.Dense(self.dim, name="c_mlp")(jax.nn.silu(c))
     x = jnp.concatenate([c[:, None], x], 1)
@@ -100,11 +108,41 @@ class FieldDenoiser(nn.Module):
     return nn.Dense(6, name="noise_out")(nn.LayerNorm()(x[:, 0]))
 
 
+class FtFieldDenoiser(nn.Module):
+  """*_ft: FieldDenoiser + a frozen DINOv2 copy (z_obs, the field's comparison space) + a trainable copy (z_ext)"""
+  mode: str = "field_full_lat"
+  dim: int = 256
+  depth: int = 4
+
+  def setup(self):
+    self.den = FieldDenoiser(mode=self.mode, dim=self.dim, depth=self.depth)
+    self.dino_frozen = DinoV2()
+    self.dino = DinoV2()
+    self.ext_ln = nn.LayerNorm()
+    self.ext_proj = nn.Dense(self.dim)
+
+  def encode(self, image):
+    """image (n, 224, 224, 3) 0-255 -> z_obs (n, 64, 384) frozen 2x2-pooled tokens, z_ext (n, 64, dim)"""
+    z_obs = pool2(jax.lax.stop_gradient(self.dino_frozen(image)))
+    z = self.dino(image)
+    n, _, D = z.shape
+    z_ext = z.reshape(n, 8, 2, 8, 2, D).transpose(0, 1, 3, 2, 4, 5).reshape(n, 64, 4 * D)
+    return z_obs, self.ext_proj(self.ext_ln(z_ext))
+
+  def __call__(self, rt, t, k, z_obs, w, z_hat, opa, h, keep=None, z_ext=None):
+    return self.den(rt, t, k, z_obs, w, z_hat, opa, h, keep, z_ext)
+
+  def full_init(self, image, rt, t, k, w, opa, h):  # touches every submodule
+    z_obs, z_ext = self.encode(image)
+    return self.den(rt, t, k, z_obs, w, z_obs, opa, h, None, z_ext)
+
+
 class Testbed(sp_dit.Testbed):
 
   def __init__(self, a, exp_path, setup=True):
     assert a.den_mode in MODES, a.den_mode
-    self.ft = False
+    self.ft = a.den_mode.endswith("_ft")
+    self.base_mode = a.den_mode[:-3] if self.ft else a.den_mode
     sp_run.TestbedSE3.__init__(self, a, exp_path, setup=setup)
 
   def create_model(self):
@@ -113,10 +151,22 @@ class Testbed(sp_dit.Testbed):
     self.train_meta, idx, ts = crop_meta(os.path.join(D, "speedplus_crops", "train"))
     assert (idx == self.train_split.index).all() and np.abs(ts - self.train_split.t).max() < 1e-5
     self.field_model, self.field_params = load_field(self.a.field_dir)
-    model = FieldDenoiser(mode=self.a.den_mode, dim=self.a.dit_dim, depth=self.a.dit_depth)
     n, z = 2, jnp.zeros((2, 64, 384))
-    params = unfreeze(model.init(jax.random.PRNGKey(self.a.seed), jnp.zeros((n, 6)), jnp.zeros((n, 1)), jnp.asarray(self.train_meta[:n]),
-                                 z, jnp.ones((n, 64)), z, jnp.ones((n, 64)), jnp.zeros((n, 64, self.field_model.field.hid))))
+    hz = jnp.zeros((n, 64, self.field_model.field.hid))
+    k2 = jnp.asarray(self.train_meta[:n])
+    if self.ft:
+      model = FtFieldDenoiser(mode=self.base_mode, dim=self.a.dit_dim, depth=self.a.dit_depth)
+      params = unfreeze(model.init(jax.random.PRNGKey(self.a.seed), jnp.zeros((n, 224, 224, 3)), jnp.zeros((n, 6)), jnp.zeros((n, 1)), k2,
+                                   jnp.ones((n, 64)), jnp.ones((n, 64)), hz, method=FtFieldDenoiser.full_init))
+      dino = flax.serialization.msgpack_restore(open(os.path.join(D, "dinov2_vits14_224.msgpack"), "rb").read())["params"]
+      shapes = lambda p: jax.tree_util.tree_map(np.shape, p)
+      for name in ("dino", "dino_frozen"):
+        assert shapes(dino) == shapes(params["params"][name]), "DINOv2 checkpoint does not match"
+        params["params"][name] = jax.tree_util.tree_map(jnp.asarray, dino)
+    else:
+      model = FieldDenoiser(mode=self.base_mode, dim=self.a.dit_dim, depth=self.a.dit_depth)
+      params = unfreeze(model.init(jax.random.PRNGKey(self.a.seed), jnp.zeros((n, 6)), jnp.zeros((n, 1)), k2,
+                                   z, jnp.ones((n, 64)), z, jnp.ones((n, 64)), hz))
     params["batch_stats"] = {}
     return model, FrozenDict(params)
 
@@ -126,6 +176,8 @@ class Testbed(sp_dit.Testbed):
                                                         with_latent=True))
 
   def create_train_dataset(self):
+    if self.ft:  # LiePose's image pipeline (sp_dit.Testbed's ft branch)
+      return super().create_train_dataset()
     return sp_dit.TokenTrainData(self.train_split, self.a.batch_size, self.a.seed)
 
   def create_get_flat_batch_train_fn(self):
@@ -134,12 +186,23 @@ class Testbed(sp_dit.Testbed):
     d = self.train_split
 
     def get_flat_batch_train(seed, batch, n_slices=256):
+      if self.ft:  # images go to the backbones once per image, not once per slice
+        batch = dict(batch)
+        image = np.asarray(batch["image"], np.float32)
+        batch["image"] = np.zeros((len(image), 1, 1, 3), np.float32)
+        meta = crop_k({k: np.asarray(batch[k]) for k in ("bbox", "bbox_center", "dzi_size", "focal_ratio")}).astype(np.float32)
+      else:
+        row = batch["row"]
+        meta = self.train_meta[row]
       b = base(seed, batch, n_slices=n_slices)
       b.pop("img", None)
-      row = batch["row"]
-      s = b["rt"].shape[0] // len(row)
+      s = b["rt"].shape[0] // len(meta)
       Rg, tg = poses(b["rt"])
-      b.update(Rg=Rg, tg=tg, kg=jnp.asarray(np.repeat(self.train_meta[row], s, 0)), tok=jnp.asarray(d.tokens[row]), fg=jnp.asarray(d.fg[row]))
+      b.update(Rg=Rg, tg=tg, kg=jnp.asarray(np.repeat(meta, s, 0)))
+      if self.ft:
+        b.update(image=jnp.asarray(image), fg=jnp.ones((len(meta), 64), jnp.float32))  # SPEED+: uniform (as the caches)
+      else:
+        b.update(tok=jnp.asarray(d.tokens[row]), fg=jnp.asarray(d.fg[row]))
       return b
 
     return get_flat_batch_train
@@ -150,17 +213,24 @@ class Testbed(sp_dit.Testbed):
 
     def update_fn(state, batch):
       t = batch["t"].reshape((-1, 1)).astype(jnp.float32)
-      s = batch["rt"].shape[0] // batch["tok"].shape[0]
-      z_obs = jnp.repeat(batch["tok"].astype(jnp.float32), s, 0)
+      n_img = batch["fg"].shape[0]
+      s = batch["rt"].shape[0] // n_img
       w = jnp.repeat(FG_FLOOR + batch["fg"], s, 0)
-      z_hat, opa, h = self._render(batch["Rg"], batch["tg"], batch["kg"], z_obs)
       keep = None
-      if self.a.den_mode == "field_drop":  # per image (all its slices), from the step's noise draws (no extra rng state)
-        u = jax.random.uniform(jax.random.fold_in(jax.random.PRNGKey(0), state.step), (batch["tok"].shape[0],))
+      if self.base_mode == "field_drop":  # per image (all its slices), from the step's noise draws (no extra rng state)
+        u = jax.random.uniform(jax.random.fold_in(jax.random.PRNGKey(0), state.step), (n_img,))
         keep = jnp.repeat((u >= self.a.drop_p).astype(jnp.float32), s, 0)
 
       def loss_fn(params):
-        mu = model.apply({"params": params}, batch["rt"], t, batch["kg"], z_obs, w, z_hat, opa, h, keep)
+        z_ext = None
+        if "image" in batch:  # frozen copy -> z_obs (the field's comparison space), trainable copy -> z_ext
+          z_obs, z_ext = model.apply({"params": params}, batch["image"], method=FtFieldDenoiser.encode)
+          z_ext = jnp.repeat(z_ext, s, 0)
+        else:
+          z_obs = batch["tok"].astype(jnp.float32)
+        z_obs = jnp.repeat(z_obs, s, 0)
+        z_hat, opa, h = self._render(batch["Rg"], batch["tg"], batch["kg"], z_obs)
+        mu = model.apply({"params": params}, batch["rt"], t, batch["kg"], z_obs, w, z_hat, opa, h, keep, z_ext)
         return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(batch["zt"], mu))
 
       loss, grads = jax.value_and_grad(loss_fn)(state.params)
@@ -177,18 +247,24 @@ class Testbed(sp_dit.Testbed):
     seq = list(zip(cur, cur[1:] + [0]))
 
     @jax.jit
-    def step(key, rt, t, tp, z_obs, w, kg):
+    def step(key, rt, t, tp, z_obs, w, kg, z_ext):
       B = rt.shape[0]
       key, k = jax.random.split(key)
       Rg, tg = poses(rt)
       z_hat, opa, h = self._render(Rg, tg, kg, z_obs)
-      mu = model.apply(params, rt, jnp.full((B, 1), t, jnp.float32), kg, z_obs, w, z_hat, opa, h)
+      mu = model.apply(params, rt, jnp.full((B, 1), t, jnp.float32), kg, z_obs, w, z_hat, opa, h, None, z_ext)
       _, rt = p_fn(jax.random.split(k, B), mu, rt, jnp.full((B,), t), jnp.full((B,), tp))
       return key, rt
 
+    encode = jax.jit(lambda image: model.apply(params, image, method=FtFieldDenoiser.encode)) if self.ft else None
+
     def sample(key, rt, tok, fg, meta, image=None):
+      """tok: the cached tokens, or (ft) None with the crop images, encoded once per image"""
+      z_ext = None
+      if image is not None:
+        tok, z_ext = encode(image)
       for t, tp in seq:
-        key, rt = step(key, rt, jnp.int32(t), jnp.int32(tp), tok, fg, meta)
+        key, rt = step(key, rt, jnp.int32(t), jnp.int32(tp), tok, fg, meta, z_ext)
       return rt
 
     return sample

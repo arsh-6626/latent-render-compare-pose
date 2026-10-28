@@ -1,0 +1,45 @@
+#!/bin/bash
+# SPEED+ final method: trained DINOv2 backbone + feature-field world model + latent (sp_field_dit field_full_lat_ft),
+# with its no-world-model control (field_nowm_ft); dtu001 account, code from $P/code_larp. Trains on LiePose's on-the-fly
+# augmented crops of the synthetic frames; tests on the official lightbox / sunlamp crops (crop shards with images).
+# 100k by default (fits one 24 h slot); re-submitting with the same STEPS resumes from the latest checkpoint. STEPS is
+# part of the experiment path and sets the lr schedule, so STEPS=400000 is a separate run, not an extension of 100k.
+#   qsub -N ffl-ft   -v MODE=field_full_lat_ft field_ft_scai.pbs
+#   qsub -N ffn-ft   -v MODE=field_nowm_ft     field_ft_scai.pbs
+#PBS -P hpc.dtu.kavinder
+#PBS -q scai_q
+#PBS -l select=1:ncpus=16:ngpus=1:mem=128gb
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+cd $P/code_larp
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+
+T=${TMPDIR:-/tmp}/ff_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+df -h $T | tail -1
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/speedplus_tokens $T/data/speedplus_crops
+cp -rL $P/data/speedplus_tokens $T/data/ || exit 1
+mkdir -p $T/data/speedplus_crops
+ln -s $P/data/speedplus_crops/train $T/data/speedplus_crops/train
+for s in val lightbox sunlamp; do ln -s $P/data/speedplus_crops_img/$s $T/data/speedplus_crops/$s; done
+# the synthetic frames on the node's local disk (the data loader reads full frames every step)
+mkdir -p $T/speedplusv2
+for f in $P/data/speedplusv2/*; do ln -s $f $T/speedplusv2/; done
+rm $T/speedplusv2/synthetic; mkdir -p $T/speedplusv2/synthetic
+cp $P/data/speedplusv2/synthetic/*.json $T/speedplusv2/synthetic/
+cp -r $P/data/speedplusv2/synthetic/images $T/speedplusv2/synthetic/ || exit 1
+
+export DATADIR=$T/data SPEEDPLUS_ROOT=$T/speedplusv2
+export PYTHONPATH=$P/code_larp/src:$P/code_larp/lib/bop_toolkit
+export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$P/xdg_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+mkdir -p $P/logs/experiments/speedplus-field-ft
+
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.sp_field_dit --root_path $P/logs/experiments/speedplus-field-ft "den_mode=[$MODE]" \
+  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[${STEPS:-100000}]" "batch_size=[64]" "n_slices=[64]" "num_workers=[14]" \
+  >> $P/logs/field_ft_${MODE}_${STEPS:-100000}.log 2>&1
+echo "FIELD_FT_DONE $?"
