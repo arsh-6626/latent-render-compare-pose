@@ -11,13 +11,14 @@ dtu004 and scored locally with the same Evaluator.evaluate (HPC scoring failed: 
 | lrc_dit_nowm_tless_ret_v1_100k (control, no WM) | 0.412 | 75.59 | 25.80 | 22.23 |
 | lrc_dit_tless_ret_v1_100k (latent render-and-compare) | 0.547 | 83.30 | 42.52 | 38.20 |
 | lrc_dit_nowm_tless_ret_v1_100k_s43 (control, seed 43) | 0.425 | 76.88 | 27.09 | 23.39 |
+| lrc_dit_tless_ret_v1_100k_s43 (latent render-and-compare, seed 43) | 0.541 | 82.57 | 41.96 | 37.82 |
 | lrc_dit_in2_tless_ret_v1_100k (input: [z_obs, ẑ]) | 0.537 | 82.50 | 41.62 | 37.12 |
 | lrc_dit_in3_tless_ret_v1_100k (input: [z_obs, ẑ, ẑ - z_obs]) | 0.543 | 83.00 | 42.14 | 37.84 |
 | lrc_dit_hi_tless_ret_v1_100k (WM only at t >= T/2, high noise) | 0.403 | 77.27 | 23.61 | 20.07 |
 | lrc_dit_lo_tless_ret_v1_100k (WM only at t < T/2, low noise) | 0.524 | 80.16 | 40.74 | 36.31 |
 
 Ablations (seed 42 unless noted; frozen DINOv2, 100k, same test protocol; AR = mean of the per-object averaged
-MSPD / MSSD / VSD, as above). Seed spread of the control: 0.412 / 0.425. The rendered tokens carry the gain
+MSPD / MSSD / VSD, as above). Two seeds: control 0.412 / 0.425, world model 0.547 / 0.541 (gain +0.135 / +0.116, mean +0.126). The rendered tokens carry the gain
 (+0.125 of +0.135); the explicit difference and the weight token add +0.006 / +0.004, within the seed spread. The
 world model contributes at low noise (0.524, ~85% of the gain) and not at high noise (0.403, no better than the
 control); both halves together give the full 0.547 (high-noise steps add mostly MSPD).
