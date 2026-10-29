@@ -46,6 +46,6 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
 O=${OUT:-$P/logs}; mkdir -p $O/experiments/speedplus-field-ft
 
 $P/env/liepose/bin/python -u -m liepose.exp.cmp.sp_field_dit --root_path $O/experiments/speedplus-field-ft "den_mode=[$MODE]" \
-  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[${STEPS:-100000}]" "batch_size=[64]" "n_slices=[64]" "num_workers=[${NW:-14}]" "grad_accum=[${GA:-1}]" \
+  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[${STEPS:-100000}]" "batch_size=[64]" "n_slices=[64]" "num_workers=[${NW:-14}]" "grad_accum=[${GA:-1}]" "ckpt_steps=[${CK:-25000}]" \
   >> $O/logs/field_ft_${MODE}_${STEPS:-100000}.log 2>&1
 echo "FIELD_FT_DONE $?"

@@ -37,6 +37,6 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy
 mkdir -p $W/experiments/tless-lrc $W/logs
 S=${STEPS:-100000}
 $P/env/liepose/bin/python -u -m liepose.exp.cmp.tless_dit --root_path $W/experiments/tless-lrc "den_mode=[$MODE]" \
-  "wm_dir=[$P/data/probe/tless_ret_v1]" "train_steps=[$S]" "seed=[${SEED:-42}]" "num_workers=[${NW:-8}]" \
+  "wm_dir=[$P/data/probe/tless_ret_v1]" "train_steps=[$S]" "seed=[${SEED:-42}]" "num_workers=[${NW:-8}]" "ckpt_steps=[${CK:-25000}]" \
   >> $W/logs/tless_${MODE}_${S}_s${SEED:-42}.log 2>&1
 echo "TLESS_DIT_DONE $?"

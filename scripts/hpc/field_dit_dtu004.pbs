@@ -22,6 +22,6 @@ rm $T/data/speedplus_tokens; cp -rL $P/data/speedplus_tokens $T/data/ || exit 1
 export DATADIR=$T/data SPEEDPLUS_ROOT=$P/data/speedplusv2
 export PYTHONPATH=$C/src:$C/lib/bop_toolkit XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
 $P/env/liepose/bin/python -u -m liepose.exp.cmp.sp_field_dit --root_path $W/experiments/speedplus-field "den_mode=[$MODE]" \
-  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[${STEPS:-100000}]" "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" \
+  "field_dir=[$P/data/probe/sp_field_v1]" "train_steps=[${STEPS:-100000}]" "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" "ckpt_steps=[${CK:-25000}]" \
   >> $W/logs/fd_${MODE}${TAG}.log 2>&1
 echo "FIELD_DIT_DONE $?"

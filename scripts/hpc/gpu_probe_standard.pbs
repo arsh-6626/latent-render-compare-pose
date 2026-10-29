@@ -1,0 +1,11 @@
+#!/bin/bash
+# 10-min probe: can this account get a GPU on the standard queue, which GPU, and does JAX see it?
+#PBS -P hpc.dtu.kavinder
+#PBS -q standard
+#PBS -l select=1:ncpus=4:ngpus=1:mem=32gb
+#PBS -l walltime=00:10:00
+#PBS -j oe
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+hostname; cat /etc/redhat-release; ldd --version | head -1; nvidia-smi --query-gpu=name,memory.total --format=csv
+$P/env/liepose/bin/python -c "import jax, jax.numpy as jnp; print(jax.devices()); print(float(jnp.ones((1024,1024)).sum()))"
+echo PROBE_DONE
