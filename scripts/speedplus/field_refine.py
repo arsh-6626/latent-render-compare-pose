@@ -1,5 +1,5 @@
 """Pose refinement by minimising the feature field's energy E(g) = mean |render(g) - z_obs|^2 (field.py, frozen) on
-the SPEED+ synthetic validation split (full split; no lightbox / sunlamp image).
+a SPEED+ split (--split: synthetic validation by default, or the lightbox / sunlamp test sets).
 
   A  bias (diagnostic, starts AT the true pose): gradient descent on E from the GT pose; how far the minimum of E
      sits from the truth (the floor for any refiner on this energy). Labelled diagnostic, GT-initialised.
@@ -62,6 +62,7 @@ def main():
   p.add_argument("--cem_rot_deg", type=float, default=3.0)
   p.add_argument("--cem_t", type=float, default=0.02)
   p.add_argument("--limit", type=int, default=0)
+  p.add_argument("--split", default="val", help="val | lightbox | sunlamp (tokens, crops and samples of this split)")
   p.add_argument("--cem_chunk", type=int, default=16, help="observations per CEM energy call (x cem_pop renders)")
   a = p.parse_args()
   D = os.environ["DATADIR"]
@@ -69,8 +70,8 @@ def main():
   field = FeatureField(plane_res=fa.plane_res, plane_dim=fa.plane_dim, hid=getattr(fa, "hid", 128), radius=fa.radius, n_samp=fa.n_samp,
                        sub=2 * getattr(fa, "grid", 8), geo=SpeedPlusGeometry())
   model = FieldModel(field=field)
-  obs = TokenSplit(os.path.join(D, getattr(fa, "tokens", "speedplus_tokens")), "val")  # the field's own token space
-  meta, idx, ts = crop_meta(os.path.join(D, "speedplus_crops", "val"))
+  obs = TokenSplit(os.path.join(D, getattr(fa, "tokens", "speedplus_tokens")), a.split)  # the field's own token space
+  meta, idx, ts = crop_meta(os.path.join(D, "speedplus_crops", a.split))
   assert (idx == obs.index).all()
   p0 = model.init(jax.random.PRNGKey(0), None, None, None, None, jnp.eye(3)[None], jnp.zeros((1, 3)), jnp.asarray(meta[:1]), jnp.zeros((1, 768)))
   params = jax.tree_util.tree_map(jnp.asarray, flax.serialization.from_bytes(p0, open(os.path.join(a.field, "params.msgpack"), "rb").read()))
@@ -146,7 +147,7 @@ def main():
   outs = {k: np.concatenate(v) for k, v in outs.items()}
 
   # scorer only
-  sh = [np.load(f) for f in sorted(glob.glob(os.path.join(D, "speedplus_crops", "val", "shard_*.npz")))]
+  sh = [np.load(f) for f in sorted(glob.glob(os.path.join(D, "speedplus_crops", a.split, "shard_*.npz")))]
   box = {k: np.concatenate([x[k] for x in sh])[:n] for k in ["bbox", "bbox_center", "focal_ratio", "rotation", "translation"]}
   R_gt = Rotation.from_quat(np.roll(box["rotation"], -1, -1)).as_matrix()
   t_gt = box["translation"].astype(np.float64)
