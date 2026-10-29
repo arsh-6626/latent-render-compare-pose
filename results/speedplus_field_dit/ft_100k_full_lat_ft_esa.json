@@ -1,0 +1,24 @@
+{
+  "exp": "/scratch/hpc/visitor/dtu004.visitor/larp/experiments/speedplus-field-ft/train_steps=100000+seed=42+den_mode=field_full_lat_ft+field=sp_field_v1",
+  "step": 100000,
+  "lightbox": {
+    "score": 0.412090554500014,
+    "score_ori": 0.3856355169115631,
+    "score_pos": 0.02645503758845083,
+    "e_q_deg_mean": 22.09556713783688,
+    "e_q_deg_median": 2.3159188041490912,
+    "e_t_m_mean": 0.15469428109636135,
+    "e_t_m_median": 0.07487878122823813,
+    "n": 6740
+  },
+  "sunlamp": {
+    "score": 0.4799970200462878,
+    "score_ori": 0.44284807297031975,
+    "score_pos": 0.03714894707596805,
+    "e_q_deg_mean": 25.373325546700837,
+    "e_q_deg_median": 4.133928457107722,
+    "e_t_m_mean": 0.21875145216214836,
+    "e_t_m_median": 0.1359389835901031,
+    "n": 2791
+  }
+}

@@ -121,8 +121,10 @@ Control (no world model)                     & GT  & 1 & \pend & \pend & \pend &
 \multicolumn{9}{@{}l}{\emph{Trained by us, a quarter of the budget (100k $\times$ 32, 16 noisy poses)}} \\
 Control (no world model)                     & GT  & 1 & 0.358 & 43.8 & 0.827 & 0.308 & 39.6 & 0.743 \\ % results/speedplus_field_dit/frozen_100k_full_nowm.txt (field_nowm)
 \method                                      & GT  & 1 & 0.285 & 37.5 & 0.705 & 0.244 & 34.5 & 0.643 \\ % frozen_100k_lat_drop.txt (field_full_lat)
-Control, trained encoder$^\ddagger$          & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % field_nowm_ft: stopped before its test
-\method, trained encoder$^\ddagger$          & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % dtu004 speedplus-field-ft field_full_lat_ft (ffl-ft, running)
+\midrule
+\multicolumn{9}{@{}l}{\emph{Trained by us, trained encoder$^\ddagger$, 100k $\times$ 64 (a quarter of the steps, 64 noisy poses)}} \\
+Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % field_nowm_ft: stopped before its test
+\method                                      & GT  & 1 & 0.155 & 22.1 & 0.412 & 0.219 & 25.4 & 0.480 \\ % results/speedplus_field_dit/ft_100k_full_lat_ft_esa.json (dtu004 speedplus-field-ft field_full_lat_ft test_100000)
 \midrule
 \color{gray}Oracle selection among the same $N$ (diagnostic) & \color{gray}GT & \color{gray}$N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
 \bottomrule
@@ -145,7 +147,9 @@ coarse rotations (\cref{tab:wm-disc}). \TODO{revise once the field's T-LESS rows
 \paragraph{SPEED+.}
 \Cref{tab:speedplus} reports the full lightbox and sunlamp sets. At a quarter of the budget, \method lowers the score from 0.827 to
 0.705 on lightbox and from 0.743 to 0.643 on sunlamp relative to the control, with lower rotation and translation errors on both.
-Both are far from LiePose at the full budget (0.234 / 0.289). \TODO{describe the matched-budget rows, the trained encoder and selection,
+Both are far from LiePose at the full budget (0.234 / 0.289). With a trained encoder (\cref{sec:den}) and 100k steps of batch 64,
+\method reaches 0.412 / 0.480. This run differs from the rows above in both the encoder and the batch, and its control with a trained
+encoder has not been evaluated, so the two effects are not separated. \TODO{describe the matched-budget rows, the trained encoder and selection,
 and the gap to the oracle as an upper bound on what selection could reach. State explicitly that the SPEC2021 entries used the
 unlabeled test-domain images and are not under our protocol.}
 
