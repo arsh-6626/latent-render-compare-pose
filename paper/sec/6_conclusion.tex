@@ -6,8 +6,8 @@
 field and of the denoiser change, and we have not evaluated this setting. The field is fitted per object from posed training crops,
 needs the object's identity and the crop camera at test time, and does not apply to unseen objects. On T-LESS it uses one scalar per
 object from the dataset's model information, the box size. Its precision is bounded by what frozen, pooled DINOv2 tokens can
-distinguish and by how well a field fitted from tokens alone captures each object (\cref{tab:wm-disc}): on T-LESS it makes more gross
-errors than a retrieval-referenced world model. Rendering at every step makes sampling slower than LiePose (\cref{tab:runtime}). Finally,
+distinguish and by how well a field fitted from tokens alone captures each object (\cref{tab:wm-disc}): as a ranker on its own, on T-LESS it
+makes more gross errors than a retrieval-referenced world model. Rendering at every step makes sampling slower than LiePose (\cref{tab:runtime}). Finally,
 our runs use 64 noisy poses per training image instead of LiePose's 256. \TODO{revise once the results are in; add any failure mode seen
 in \cref{fig:qual}.}
 

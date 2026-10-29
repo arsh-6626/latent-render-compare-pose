@@ -78,8 +78,8 @@ Control (no world model)            & DINOv2-S  & 100k $\times$ 32 & 42 & 22.2 &
 \method, retrieval                  & DINOv2-S  & 100k $\times$ 32 & 42 & 38.2 & 42.5 & 83.3 & 54.7 \\ % results/tless_test/lrc_dit_tless_ret_v1_100k
 Control (no world model)            & DINOv2-S  & 100k $\times$ 32 & 43 & 23.4 & 27.1 & 76.9 & 42.5 \\ % results/tless_test/lrc_dit_nowm_tless_ret_v1_100k_s43
 \method, retrieval                  & DINOv2-S  & 100k $\times$ 32 & 43 & 37.8 & 42.0 & 82.6 & 54.1 \\ % results/tless_test/lrc_dit_tless_ret_v1_100k_s43
-Control, trained encoder            & DINOv2-S$^\ddagger$ & 100k $\times$ 32 & 42 & \pend & \pend & \pend & \pend \\ % tl-nowm-ft (dtu001, running)
-\method, retrieval, trained encoder & DINOv2-S$^\ddagger$ & 100k $\times$ 32 & 42 & \pend & \pend & \pend & \pend \\ % local tless-lrc-ft dit_ft (running)
+Control, trained encoder            & DINOv2-S$^\ddagger$ & 100k $\times$ 32 & 42 & 24.6 & 28.6 & 79.4 & 44.2 \\ % dtu001 logs/logs/tless_dit_nowm_ft_100000_s42.log Avg(30) 79.36/28.64/24.56, 6815 crops
+\method, retrieval, trained encoder & DINOv2-S$^\ddagger$ & 100k $\times$ 32 & 42 & 38.3 & 42.7 & 82.3 & 54.4 \\ % local logs/tless-lrc-ft/dit_ft_100k.log Avg(30) 82.31/42.68/38.31, 6815 crops
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -108,7 +108,7 @@ Control (no world model)                     & GT  & 1 & 0.159 & 16.0 & 0.306 & 
 \quad + consensus                            & GT  & 16 & 0.128 & 8.4 & 0.168 & 0.184 & 12.9 & 0.255 \\ % consensus/ft_wm_100k_*.json
 \midrule
 \multicolumn{9}{@{}l}{\emph{Trained encoder$^\ddagger$, final checkpoint (400k $\times$ 64)}} \\
-Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % ft400-nowm (dtu001, running)
+Control (no world model)                     & GT  & 1 & 0.149 & 13.0 & 0.252 & 0.248 & 22.0 & 0.425 \\ % dtu001 logs/speedplus_ft400k_dit_nowm_ft.log (test-script weights; EMA/live check of tab:supp-ema pending)
 \method, retrieval                           & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % ft400-wm (dtu001, running)
 \bottomrule
 \end{tabular}
@@ -224,7 +224,7 @@ Control (no world model) & 34.7 & 44.4 & 3.5 \\ % results/tless_zeroshot/dit_now
 
 \paragraph{Summary.}
 On T-LESS the retrieval world model raises AR over its control by 13.5 and 11.6 points at 100k $\times$ 32 (seeds 42 and 43) and
-by 6.7 at the matched budget. The rendered tokens carry the gain: the explicit difference and the weight add 0.9 and 0.1 points over
+by 6.7 at the matched budget, and by 10.2 with a trained encoder (44.2 to 54.4 at 100k $\times$ 32). The rendered tokens carry the gain: the explicit difference and the weight add 0.9 and 0.1 points over
 $[\zobs,\zhat]$. The comparison contributes at low noise (52.4) and not at high noise (40.7, no better than the control). On SPEED+ the
 gains are smaller (0.782 to 0.734 at 100k; 0.717 with geometry tokens), and the 400k model with geometry tokens (0.701) is far behind
 LiePose (0.234). With a trained encoder, the comparison lowers the score at the intermediate checkpoint from 0.306 to 0.280, and from

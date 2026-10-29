@@ -70,7 +70,7 @@ Control (no world model)            & DINOv2-S  & GT & 1 & \pend & \pend & \pend
 \midrule
 \multicolumn{12}{@{}l}{\emph{Trained by us, ground-truth crops, 100k $\times$ 32 (an eighth of the training images, 16 noisy poses)}} \\
 Control (no world model)            & DINOv2-S  & GT & 1 & 21.5 & 24.9 & 75.2 & 40.5 & \pend & \pend & \pend & \pend \\ % dtu001 tless-field/...field_nowm+field=tl_field_v1/test_100000/evaluation_summary.txt Avg(30)
-\method                             & DINOv2-S  & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % tless-field field_full_lat 100k: test running (dtu001 1125453)
+\method                             & DINOv2-S  & GT & 1 & 65.3 & 65.5 & 86.5 & 72.4 & \pend & \pend & \pend & \pend \\ % dtu001 logs/logs/tless_field_dit_field_full_lat_100000_s42.log Avg(30) 86.46/65.46/65.27, 6815 crops, eval 20/20 (job 1125453)
 Control, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % field_nowm_ft: stopped before its test
 \method, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % field_full_lat_ft: stopped before its test
 \bottomrule
@@ -140,9 +140,11 @@ Control (no world model)                     & GT  & 1 & \pend & \pend & \pend &
 control, and with published methods. \TODO{describe once the rows are filled: (i) \method vs control (the effect of the comparison),
 (ii) \method vs LiePose (ours), (iii) where the difference comes from, using the rotation and translation accuracies of
 \cref{tab:supp-tless-rt}, (iv) the effect of selection. Do not compare GT-crop rows with detector rows.}
-On T-LESS the retrieval-referenced world model of \cref{sec:supp-ret} is so far the stronger variant. At 100k $\times$ 32 it
-raises AR from 41.2 to 54.7 over its own control (\cref{tab:supp-ret-bop}), while the field's discrimination on T-LESS is weaker at
-coarse rotations (\cref{tab:wm-disc}). \TODO{revise once the field's T-LESS rows are filled.}
+At 100k $\times$ 32, \method raises AR on T-LESS from 40.5 to 72.4 over the control, with all three recalls higher
+(\cref{tab:bop}). The gain is largest in translation, where the recall at 2\,cm rises from 26.8 to 80.3, and the rotation recall at
+$5^\circ$ rises from 45.7 to 71.6 (\cref{tab:supp-tless-rt}). With an eighth of the training images, \method is 1.3 AR below LiePose
+trained by us at the full budget (73.7); this is one seed, and the matched-budget rows are not yet run. At the same budget the
+retrieval world model of \cref{sec:supp-ret} raises AR from 41.2 to 54.7 over its own control (\cref{tab:supp-ret-bop}).
 
 \paragraph{SPEED+.}
 \Cref{tab:speedplus} reports the full lightbox and sunlamp sets. At 100k $\times$ 32, \method lowers the score from 0.827 to
@@ -172,7 +174,7 @@ Denoiser input per token & T-LESS & SPEED+ \\
 \midrule
 $[\zobs,w]$ (control)                                   & 40.5  & 0.827 / 0.743 \\ % field_nowm (T-LESS dtu001 test_100000; SPEED+ frozen_100k_full_nowm.txt)
 $[\zobs,\zhat,\zhat-\zobs,w]$                           & \pend & 0.742 / 0.687 \\ % field_full
-$[\zobs,\zhat,\zhat-\zobs,w,\hlat]$ (\method)            & \pend & 0.705 / 0.643 \\ % field_full_lat; T-LESS test running
+$[\zobs,\zhat,\zhat-\zobs,w,\hlat]$ (\method)            & 72.4  & 0.705 / 0.643 \\ % field_full_lat; T-LESS dtu001 tless_field_dit_field_full_lat_100000_s42
 \quad + statistics, raw channels dropped ($p{=}0.5$)     & \pend & 0.758 / 0.724 \\ % field_drop
 Statistics only (no $\zobs$)                            & \pend & 1.516 / 1.507 \\ % field_bneck
 Statistics $+\ \hlat$ (no $\zobs$)                      & \pend & 1.318 / 1.326 \\ % field_bneck_lat
