@@ -1,0 +1,232 @@
+% ==============================================================================================================================
+\section{A retrieval-referenced world model}
+\label{sec:supp-ret}
+
+This section describes an alternative world model, which predicts the tokens at a pose from the nearest training view instead of
+rendering them from a field, and reports every result obtained with it. The denoiser, the control, the training budget and the
+evaluation are those of the main paper, except where stated. Everything in this section that says \method refers to \method with this
+world model.
+
+\subsection{Model}
+\label{sec:supp-ret-model}
+
+\paragraph{Reference bank and retrieval.}
+For each object $o$, the \emph{reference bank} holds the cached tokens, poses and crop boxes of the training crops,
+$\mathcal{B}_o=\{(\zobs_i,g_i,k_i)\}$. When the object's symmetry group $\mathcal{S}_o$ is known, the bank is expanded by it: each crop
+appears once per symmetric equivalent $(R_iS,t_i)$, $S\in\mathcal{S}_o$, subsampled to at most 36 (T-LESS) or 60 (SYMSOL-T) equivalents. Given a
+query pose $g=(R,t)$, retrieval returns the nearest entry under the key $[\mathrm{vec}(R_{\text{allo}}),\ \lambda t]$,
+$\mathrm{ret}(g)=(\zref,\gref,k^{\mathrm{ref}})$. While training both the world model and the denoiser, entries from the observation's own
+source image are excluded, so the model never sees its target as a reference. At test time the bank contains training crops only.
+
+\paragraph{Prediction.}
+The world model predicts the tokens of the object at pose $g$, in the crop $k$ of the observation:
+\begin{equation}
+\zhat(g) = \WM^{\mathrm{ret}}\big(\zref,\ \gref \!\rightarrow\! g,\ k^{\mathrm{ref}},\ k\big)\in\mathbb{R}^{64\times384}.
+\label{eq:retwm}
+\end{equation}
+$\WM^{\mathrm{ret}}$ is a 6-block transformer of width 384 whose blocks are modulated (adaLN~\cite{peebles2023dit}) by Fourier features
+of the target pose $g$ and of the relative pose $g\,(\gref)^{-1}$. Its input tokens are a linear projection of $\zref$. The energy is
+\cref{eq:energy} with this prediction and the reference retrieved at $g$.
+
+\paragraph{Geometry tokens.}
+A rotation of half a degree changes DINOv2 tokens very little, but it moves image points by a computable amount. When the camera
+intrinsics and the crop box are available, this displacement is given to the model explicitly (\cref{sec:supp-geo}). We use geometry
+tokens on SYMSOL-T and SPEED+; on T-LESS the token cache used for this model does not store the per-crop intrinsics.
+
+\paragraph{Training.}
+The world model is trained so that its energy ranks poses, not only so that it reconstructs tokens. For each training crop with pose
+$g^\star$ we form a candidate set $\mathcal{C}$ (\cref{sec:supp-wm}). The reference is retrieved at a noisy copy of $g^\star$, which
+mimics the poses at which the denoiser will query it. With a soft target that accounts for symmetry,
+$q_c \propto \exp\!\big(-d_{\mathcal{S}}(R_c,R^\star)^2/2\sigma_R^2-\|t_c-t^\star\|^2/2\sigma_t^2\big)$, where $d_{\mathcal{S}}$ is the rotation
+distance to the nearest symmetric equivalent, the loss is
+\begin{equation}
+\mathcal{L}_{\mathrm{WM}} = \mathrm{CE}\Big(\mathrm{softmax}_c\big(-E(g_c)/\tau\big),\ q\Big) + \lambda_{\mathrm{rec}}\,E(g^\star),
+\label{eq:wmloss}
+\end{equation}
+with a learned temperature $\tau$. On SYMSOL-T we add regression targets from in-plane rotations of training images and from rendered pose
+pairs (\cref{sec:supp-wm}).
+
+\paragraph{Denoiser.}
+The denoiser's input tokens are $[\zobs_p,\ \zhat_p,\ \zhat_p-\zobs_p,\ w_p]$, and the control sets $\zhat:=0$. The conditioning includes a
+linear embedding of the crop box on all benchmarks. Retrieval is a nearest-neighbour query on the CPU, once per sample and step.
+
+\paragraph{Differences from the field.}
+The retrieved prediction carries the lighting, background and occlusion of the reference view, and its error at the true pose is
+bounded by how far the nearest training view is. The field has neither limitation, but it must represent the whole object from tokens
+alone, and it needs no reference bank at test time.
+
+% ------------------------------------------------------------------------------------------------------------------------------
+\subsection{Results}
+\label{sec:supp-ret-results}
+
+\begin{table*}[t]
+\centering
+\caption{\textbf{T-LESS with the retrieval world model} (BOP19 targets, BOP average recall, \%, ground-truth crops). Protocol as
+\cref{tab:bop}. $^\ddagger$Encoder trained (a frozen copy gives the comparison space).}
+\label{tab:supp-ret-bop}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}llcc cccc@{}}
+\toprule
+Method & Encoder & Budget & Seed & VSD & MSSD & MSPD & AR \\
+\midrule
+LiePose (our training)              & ResNet-34 & 400k $\times$ 64 & 42 & 63.1 & 65.7 & 92.3 & 73.7 \\ % live weights (tab:supp-ema); logs/tless_test/liepose_se3_400k_noema
+Control (no world model)            & DINOv2-S  & 400k $\times$ 64 & 42 & 30.5 & 34.0 & 78.3 & 47.6 \\ % EMA; logs/tless_test/lrc_dit_nowm_400k
+\method, retrieval                  & DINOv2-S  & 400k $\times$ 64 & 42 & 38.4 & 42.3 & 82.4 & 54.3 \\ % EMA; logs/tless_test/lrc_dit_400k
+\midrule
+Control (no world model)            & DINOv2-S  & 100k $\times$ 32 & 42 & 22.2 & 25.8 & 75.6 & 41.2 \\ % results/tless_test/lrc_dit_nowm_tless_ret_v1_100k
+\method, retrieval                  & DINOv2-S  & 100k $\times$ 32 & 42 & 38.2 & 42.5 & 83.3 & 54.7 \\ % results/tless_test/lrc_dit_tless_ret_v1_100k
+Control (no world model)            & DINOv2-S  & 100k $\times$ 32 & 43 & 23.4 & 27.1 & 76.9 & 42.5 \\ % results/tless_test/lrc_dit_nowm_tless_ret_v1_100k_s43
+\method, retrieval                  & DINOv2-S  & 100k $\times$ 32 & 43 & 37.8 & 42.0 & 82.6 & 54.1 \\ % results/tless_test/lrc_dit_tless_ret_v1_100k_s43
+Control, trained encoder            & DINOv2-S$^\ddagger$ & 100k $\times$ 32 & 42 & \pend & \pend & \pend & \pend \\ % tl-nowm-ft (dtu001, running)
+\method, retrieval, trained encoder & DINOv2-S$^\ddagger$ & 100k $\times$ 32 & 42 & \pend & \pend & \pend & \pend \\ % local tless-lrc-ft dit_ft (running)
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[t]
+\centering
+\caption{\textbf{SPEED+ with the retrieval world model} (protocol as \cref{tab:speedplus}). $^\ddagger$Encoder trained.}
+\label{tab:supp-ret-speedplus}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lcc ccc ccc@{}}
+\toprule
+& & & \multicolumn{3}{c}{lightbox} & \multicolumn{3}{c}{sunlamp} \\
+\cmidrule(lr){4-6}\cmidrule(lr){7-9}
+Method & Box & Samples & $e_t$ & $e_q$ & $S$ & $e_t$ & $e_q$ & $S$ \\
+\midrule
+\multicolumn{9}{@{}l}{\emph{Matched number of training images (400k $\times$ 64)}} \\
+Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\
+\method, retrieval                           & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\
+\method, retrieval + geometry tokens         & GT  & 1 & 0.317 & 37.0 & 0.701 & 0.275 & 38.3 & 0.716 \\ % EMA; dtu004 speedplus-lrc/...dit+wm=sp_geo_v1/test_400000/esa.json
+\midrule
+\multicolumn{9}{@{}l}{\emph{Trained encoder$^\ddagger$; intermediate checkpoint (100k of the 400k schedule)}} \\
+Control (no world model)                     & GT  & 1 & 0.159 & 16.0 & 0.306 & 0.215 & 21.8 & 0.417 \\ % results/speedplus_test/ft400_eval100k.txt (dit_nowm_ft, 100k)
+\quad + consensus                            & GT  & 16 & 0.144 & 10.3 & 0.204 & 0.202 & 16.1 & 0.314 \\ % consensus/ft_nowm_100k_*.json
+\method, retrieval                           & GT  & 1 & 0.154 & 14.5 & 0.280 & 0.204 & 19.7 & 0.379 \\ % ft400_eval100k.txt (dit_ft, 100k)
+\quad + consensus                            & GT  & 16 & 0.128 & 8.4 & 0.168 & 0.184 & 12.9 & 0.255 \\ % consensus/ft_wm_100k_*.json
+\midrule
+\multicolumn{9}{@{}l}{\emph{Trained encoder$^\ddagger$, final checkpoint (400k $\times$ 64)}} \\
+Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % ft400-nowm (dtu001, running)
+\method, retrieval                           & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % ft400-wm (dtu001, running)
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{SYMSOL-T with the retrieval world model} (mean rotation error $R$ in degrees, mean translation error $t$; lower is
+better). \emph{Input}: full image or crop around the rendered object. Our rows: 400k $\times$ 32, 64 noisy poses. On SYMSOL-T LiePose
+takes the full image, so the crop gives \method information that LiePose does not use. \TODO{fill the LiePose rows.}}
+\label{tab:symsolt}
+\scriptsize
+\setlength{\tabcolsep}{1.4pt}
+\begin{tabular}{@{}lc cc cc cc cc cc@{}}
+\toprule
+& & \multicolumn{2}{c}{tet.} & \multicolumn{2}{c}{cube} & \multicolumn{2}{c}{icosa.} & \multicolumn{2}{c}{cone} & \multicolumn{2}{c}{cyl.} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}\cmidrule(lr){11-12}
+Method & Input & $R$ & $t$ & $R$ & $t$ & $R$ & $t$ & $R$ & $t$ & $R$ & $t$ \\
+\midrule
+Regr.~\cite{hsiao2024liepose}            & full & 2.92 & 0.064 & 2.86 & 0.050 & 2.46 & 0.037 & 1.84 & 0.058 & 2.24 & 0.049 \\ % LiePose Tab. 3
+Iter.\ regr.~\cite{hsiao2024liepose}     & full & 4.25 & 0.048 & 4.20 & 0.037 & 29.33 & 0.026 & 1.63 & 0.037 & 2.34 & 0.032 \\ % LiePose Tab. 3
+LiePose~\cite{hsiao2024liepose}          & full & 0.59 & 0.016 & 0.58 & 0.011 & 0.64 & 0.012 & 0.54 & 0.016 & 0.41 & 0.011 \\ % LiePose Tab. 3, SE(3) (Supp. Tab. 6 prints cone R 0.55)
+\midrule
+LiePose (ours)                           & full & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+LiePose (ours)                           & crop & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+Control                                  & crop & 1.72 & 0.048 & 1.03 & 0.028 & 0.84 & 0.022 & 1.90 & 0.045 & 0.79 & 0.031 \\ % results/symsolt400k/dit_nowm_summary.json (400k x 32, 64 noisy poses)
+\method (ret.)                           & crop & 1.35 & 0.039 & 0.90 & 0.022 & 0.57 & 0.016 & 1.53 & 0.032 & 0.70 & 0.020 \\ % results/symsolt400k/dit_summary.json
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{Retrieval world-model variants.} Same denoiser and budget (100k steps $\times$ batch 32, 16 noisy poses per image), one
+sample. T-LESS: AR (\%, $\uparrow$); SPEED+: score $S$ on lightbox ($\downarrow$); SYMSOL-T: mean rotation error over shapes (deg,
+$\downarrow$).}
+\label{tab:abl-wm}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}l ccc@{}}
+\toprule
+World model in the denoiser & T-LESS & SPEED+ & SYMSOL-T \\
+\midrule
+None (control, $\zhat{=}0$)                        & 41.2 & 0.782 & \pend \\ % 100k: lrc_dit_nowm_100k; sp dit_nowm sp_ret_v1
+Learned template, no reference                     & \pend & \pend & \pend \\
+Retrieved reference                                & 54.7 & 0.734 & \pend \\ % 100k: lrc_dit_100k; sp dit sp_ret_v1
+\quad + geometry tokens                            & --    & 0.717 & \pend \\ % 100k: sp dit sp_geo_v1
+\quad + roll / render-pair targets                 & --    & --    & \pend \\
+\color{gray}Oracle $\zhat$: GT-view tokens (diag.)  & \pend & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{Denoiser inputs and when the comparison is used}, retrieval world model. T-LESS AR (\%, $\uparrow$) and SPEED+ lightbox
+$S$ ($\downarrow$), one sample, 100k $\times$ 32 (16 noisy poses per image) for every row. $t_0=50$ of the 100 training timesteps, fixed in
+advance; outside the stated range the prediction is zeroed, as in the control.}
+\label{tab:supp-ret-den}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}l cc@{}}
+\toprule
+Variant & T-LESS & SPEED+ \\
+\midrule
+$[\zobs]$ (control)                                        & 41.2 & 0.782 \\
+$[\zobs,\zhat]$                                            & 53.7 & 0.716 \\ % abl_dit_in2_100k
+$[\zobs,\zhat,\zhat-\zobs]$                                & 54.6 & 0.718 \\ % abl_dit_in3_100k; rerun 2026-10-28 (code_larp, dtu001): 54.3
+$[\zobs,\zhat,\zhat-\zobs,w]$ (\method)                     & 54.7 & 0.734 \\
+\midrule
+Comparison only for $t\ge t_0$ (high noise)      & 40.7 & 0.774 \\ % abl_dit_hi_100k; rerun 2026-10-28: 40.3 (in2 53.7, lo 52.4 reproduce)
+Comparison only for $t< t_0$ (low noise)         & 52.4 & 0.755 \\ % abl_dit_lo_100k
+\midrule
+$16{\times}16$ full-resolution tokens            & \pend & \pend \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{Selection with the retrieval world model} (SPEED+ lightbox $S$, $\downarrow$), the 100k model with geometry tokens
+(\cref{tab:abl-wm}). Random: sample 0; oracle: the sample closest to the ground truth in rotation (diagnostic).}
+\label{tab:supp-ret-select}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}c ccc@{}}
+\toprule
+$N$ & random & energy & \color{gray}oracle \\
+\midrule
+1  & 0.713 & 0.713 & 0.713 \\ % N=1: sample 0 of the 16 (logs/speedplus_test/lrc_dit_sp_geo_v1_100k_best16)
+16 & 0.713 & 0.593 & 0.331 \\ % random = sample 0; energy_pick; diag_oracle_rot
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{\textbf{Held-out objects} (T-LESS, BOP AR \%, retrieval world model, 100k $\times$ 32). The denoiser is trained on objects
+1--20 only and tested on all 30; at test time each object's bank holds its training crops. \TODO{state which objects the world model
+was trained on (\texttt{tless\_ret\_ho20}).}}
+\label{tab:supp-ret-zeroshot}
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}l ccc@{}}
+\toprule
+Method & all & seen (1--20) & unseen (21--30) \\
+\midrule
+Control (no world model) & 34.7 & 44.4 & 3.5 \\ % results/tless_zeroshot/dit_nowm/subsets.json
+\method (ret.)           & 41.4 & 52.4 & 6.3 \\ % results/tless_zeroshot/dit/subsets.json
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Summary.}
+On T-LESS the retrieval world model raises AR over its control by 13.5 and 11.6 points at a quarter of the budget (seeds 42 and 43) and
+by 6.7 at the matched budget. The rendered tokens carry the gain: the explicit difference and the weight add 0.9 and 0.1 points over
+$[\zobs,\zhat]$. The comparison contributes at low noise (52.4) and not at high noise (40.7, no better than the control). On SPEED+ the
+gains are smaller (0.782 to 0.734 at 100k; 0.717 with geometry tokens), and the 400k model with geometry tokens (0.701) is far behind
+LiePose (0.234). With a trained encoder, the comparison lowers the score at the intermediate checkpoint from 0.306 to 0.280, and from
+0.204 to 0.168 with consensus selection. On SYMSOL-T it lowers the mean rotation error on every shape. Objects never seen by the
+denoiser remain out of reach: AR 6.3 against 3.5 for the control.

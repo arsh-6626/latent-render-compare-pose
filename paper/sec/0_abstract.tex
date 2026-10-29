@@ -1,13 +1,15 @@
 \begin{abstract}
-Diffusion models on SE(3) handle the pose ambiguity of symmetric and occluded objects by sampling, but each denoising step is a
-feed-forward function of image features and the noisy pose: the network never checks whether its current hypothesis explains the
-image. Render-and-compare refiners do perform this check, but they require a renderer and a textured 3D model, and run as a separate
-stage after an initial estimate. We propose \method, a pose-estimation architecture built around this comparison, carried out in a
-learned feature space inside every denoising step. A frozen world model, trained on DINOv2 patch tokens, predicts the tokens of the object at any pose hypothesis from the nearest training view
-and the relative pose between them. At every denoising step and for every sample, the denoiser receives the observed tokens, the
-tokens predicted at its current hypothesis, and their difference. The same prediction defines an energy that ranks complete samples
-at test time without ground truth. The world model is trained once per dataset with a pose-contrastive objective and is never
-updated by the denoiser. A control that removes only the predicted tokens isolates the effect of the comparison. We evaluate on T-LESS and YCB-V under the BOP protocol, on the
-SPEED+ spacecraft benchmark with its official score, and on SYMSOL-T, against LiePose trained with the same budget.
+Diffusion models on SE(3) handle the pose ambiguity of symmetric and occluded objects by sampling. Each denoising step, however, is a
+feed-forward function of image features and the noisy pose, so the network never checks whether its current hypothesis explains the
+image. Render-and-compare refiners do perform this check. They need a renderer and a textured 3D model, though, and run as a separate
+stage after an initial estimate. We propose \method, a pose-estimation architecture that carries out this comparison in a learned feature
+space inside every denoising step. Its world model is a feature field of the object: tri-planes and a small MLP, fitted once to the
+frozen DINOv2 tokens of posed training crops. It renders by volume rendering the tokens that the object would produce at any pose
+hypothesis, in the observation's crop. The field needs no reference image, CAD model or RGB reconstruction, and its 3D structure is
+learned only from the tokens. At every denoising step and for every sample, the denoiser receives the observed tokens, the tokens
+rendered at its current hypothesis, their difference, and the field's latent at the surface each ray hits. A control that removes only
+the rendered quantities isolates the effect of the comparison. We evaluate on T-LESS under the BOP protocol, on the SPEED+ spacecraft
+benchmark with its official score, and against LiePose trained with the same budget. A retrieval-referenced world model, which
+predicts tokens from the nearest training view, is studied in the supplement.
 \TODO{one sentence of results, written only after the tables are filled.}
 \end{abstract}

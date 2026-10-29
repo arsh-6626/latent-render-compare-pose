@@ -2,16 +2,18 @@
 \label{sec:conclusion}
 
 \paragraph{Limitations.}
-\method relies on ground-truth crops on all four benchmarks, as LiePose does on T-LESS; with detected boxes and masks the inputs of
-the world model and of the denoiser change, and we have not evaluated this setting. The world model needs a bank of posed training
-views of each object and the object's identity at test time; it does not apply to unseen objects. Its precision is bounded by what
-frozen, pooled DINOv2 tokens can distinguish (\cref{tab:wm-disc}), and the retrieval and world-model queries at every step make sampling
-slower than LiePose (\cref{tab:runtime}). Geometry tokens require the camera intrinsics and the crop box. Finally, our runs use 64 noisy
-poses per training image instead of LiePose's 256. \TODO{revise once the results are in; add any failure mode seen in \cref{fig:qual}.}
+\method relies on ground-truth crops on both benchmarks, as LiePose does on T-LESS; with detected boxes and masks the inputs of the
+field and of the denoiser change, and we have not evaluated this setting. The field is fitted per object from posed training crops,
+needs the object's identity and the crop camera at test time, and does not apply to unseen objects. On T-LESS it uses one scalar per
+object from the dataset's model information, the box size. Its precision is bounded by what frozen, pooled DINOv2 tokens can
+distinguish and by how well a field fitted from tokens alone captures each object (\cref{tab:wm-disc}): on T-LESS it makes more gross
+errors than a retrieval-referenced world model. Rendering at every step makes sampling slower than LiePose (\cref{tab:runtime}). Finally,
+our runs use 64 noisy poses per training image instead of LiePose's 256. \TODO{revise once the results are in; add any failure mode seen
+in \cref{fig:qual}.}
 
 \paragraph{Conclusion.}
-We moved render-and-compare into SE(3) diffusion: a frozen world model predicts, at every denoising step and for every sample, the
-DINOv2 tokens of the object at the current hypothesis, and the denoiser conditions on their comparison with the observation. The same
-prediction gives an energy that ranks samples without ground truth. Because the diffusion formulation is unchanged and the control
-differs only by the predicted tokens, the experiments isolate what the comparison contributes. \TODO{one or two sentences of findings,
-written after the tables are filled.}
+We moved render-and-compare into SE(3) diffusion. A feature field of the object, fitted once to frozen DINOv2 tokens, renders at every
+denoising step and for every sample the tokens of the object at the current hypothesis, and the denoiser conditions on their comparison
+with the observation and on the field's latent. The same rendering gives an energy that ranks samples without ground truth. Because the
+diffusion formulation is unchanged and the control differs only by the rendered quantities, the experiments isolate what the comparison
+contributes. \TODO{one or two sentences of findings, written after the tables are filled.}

@@ -2,11 +2,12 @@
 \setcounter{section}{0}
 \renewcommand{\thesection}{\Alph{section}}
 
-This supplement gives implementation details (\cref{sec:supp-impl}), the world-model training procedure
-(\cref{sec:supp-wm}) and geometry tokens (\cref{sec:supp-geo}), the evaluation protocols (\cref{sec:supp-protocol}), our
-reproduction of LiePose and the choice between averaged and live weights (\cref{sec:supp-repro}), an audit of the information used at
-training and test time (\cref{sec:supp-disclose}), and additional results (\cref{sec:supp-results}). Section, table and equation numbers
-without a letter refer to the main paper.
+This supplement gives implementation details (\cref{sec:supp-impl}), the fitting of the feature field (\cref{sec:supp-field}), the
+evaluation protocols (\cref{sec:supp-protocol}), our reproduction of LiePose and the choice between averaged and live weights
+(\cref{sec:supp-repro}), an audit of the information used at training and test time (\cref{sec:supp-disclose}), and additional results
+(\cref{sec:supp-results}). \Cref{sec:supp-ret} describes the retrieval-referenced world model and reports all results obtained with
+it; its training procedure and geometry tokens are in \cref{sec:supp-wm,sec:supp-geo}. Section, table and equation numbers without a
+letter refer to the main paper.
 
 % ==============================================================================================================================
 \section{Implementation details}
@@ -20,24 +21,28 @@ mask, max-pooled to the token grid and dilated by one token. On SPEED+, two augm
 exported; on T-LESS, 180,224 augmented training crops are drawn from LiePose's training set (PBR and real images).
 \TODO{YCB-V numbers of exported crops.}
 
-\paragraph{World model.}
-\Cref{tab:supp-hparams} lists the hyperparameters. The candidate set per training crop, the reference noise and the loss are described
-in \cref{sec:supp-wm}.
+\paragraph{Feature field.}
+\Cref{tab:supp-hparams} lists the hyperparameters; the fitting procedure is in \cref{sec:supp-field}. The field is evaluated in float32;
+the 32 depth samples per ray are at stratified random offsets while fitting and at bin centres in the denoiser and at test time.
 
 \paragraph{Denoiser.}
 Token transformer of width 256, depth 4, 8 heads, MLP ratio 4, adaLN modulation with zero-initialised gates in every block. Input
-tokens: LayerNorm then a linear map of the concatenation $[\zobs_p,\zhat_p,\zhat_p-\zobs_p,w_p]$ ($3\cdot384+1$ dimensions), plus a learned
-position embedding. The conditioning token is the sum of Fourier embeddings of the step and of the 6-dimensional Lie-algebra coordinates
-of the noisy pose and a linear embedding of the crop features (log zoom, normalised crop centre, and on SPEED+ the log box aspect),
-followed by SiLU and a linear layer. The output head maps the final conditioning token to the 6-dimensional noise.
+tokens: a linear map of the concatenation of the separately LayerNorm-ed $\zobs_p$, $\zhat_p$, $\zhat_p-\zobs_p$ and $\hlat_p$, and $w_p$
+($3\cdot384+128+1$ dimensions; control: $384+1$), plus a learned position embedding. The conditioning token is the sum of Fourier embeddings
+of the step and of the 6-dimensional Lie-algebra coordinates of the noisy pose, on SPEED+ plus a linear embedding of the crop features
+(log zoom, normalised crop centre, log box aspect), followed by SiLU and a linear layer. The output head maps the final conditioning
+token to the 6-dimensional noise. The field is applied with frozen parameters and a stop-gradient. With a trained encoder, the
+trainable DINOv2 copy (learning rate $\times0.1$) yields $16\times16$ tokens; each $2\times2$ cell is concatenated to 1536 channels,
+LayerNorm-ed, projected to width 256 and added to the input tokens.
 
 \paragraph{Diffusion, optimisation, sampling.}
 The generative process is LiePose's SE(3) diffusion formulation, run with its public code and unchanged; it is not a contribution of
 this paper, and it is shared by \method, the control and the LiePose baseline, so that they differ only in the denoiser. As LiePose:
 SE(3) parametrisation with tangent-space representation, 100 noise levels with a variance-exploding power-law schedule, noise-prediction loss,
 Adam with learning rate $10^{-4}$ and exponential decay to $10^{-5}$ over the second half of training, weight averaging with decay
-0.999 every 5 steps, and the 100-step sampler with the same options as LiePose's test script. The world-model parameters are restored
-after every optimiser step, so that weight decay cannot move them.
+0.999 every 5 steps, and the 100-step sampler with the same options as LiePose's test script. The world model's parameters are not
+part of the optimised state. Where a batch of 64 images with 64 noisy poses does not fit a 40\,GB GPU, the gradient is accumulated over
+2 or 4 micro-batches; this gives the same gradient.
 
 \begin{table*}[t]
 \centering
@@ -49,6 +54,15 @@ after every optimiser step, so that weight decay cannot move them.
 \toprule
 & T-LESS & YCB-V & SPEED+ & SYMSOL-T \\
 \midrule
+\multicolumn{5}{@{}l}{\emph{Feature field (\method)}} \\
+tri-planes per object             & $3\times128^2\times32$ & \pend & $3\times128^2\times32$ & -- \\
+MLP width / ray samples / rays    & 128/32/$16^2$ & \pend & 128/32/$16^2$ & -- \\
+box half-size $r_o$               & $1.2\times$ radius & \pend & 1\,m & -- \\
+fitting steps / batch / lr        & 100k/32/$2\cdot10^{-3}$ & \pend & 60k/32/$2\cdot10^{-3}$ & -- \\
+token weights in the fit          & mask ($w_0{=}0.05$) & \pend & uniform & -- \\
+field checkpoint                  & held-out pick error & \pend & val P$_{1\text{--}3}$ & -- \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Retrieval world model (\cref{sec:supp-ret})}} \\
 WM width / depth / heads          & 384/6/6 & \pend & 384/6/6 & 384/6/6 \\
 WM geometry tokens                & no & \pend & yes (geo) / no (ret) & yes \\
 WM steps / batch                  & 30k/32 & \pend & 30k/32 & 20k/32 \\
@@ -71,7 +85,31 @@ LiePose (ours): noisy poses       & 256 & 256 & 256 & 256 \\
 \end{table*}
 
 % ==============================================================================================================================
-\section{World-model training}
+\section{Fitting the feature field}
+\label{sec:supp-field}
+
+\paragraph{Data.}
+The field is fitted to the cached training tokens, the same crops that train the denoiser, at their ground-truth poses and with each
+crop's own crop camera. The appearance code of each crop is computed from its own tokens. On T-LESS a held-out 3\% of the training
+source images is excluded for the discrimination measurements (\cref{tab:wm-disc}).
+
+\paragraph{Translation on T-LESS.}
+LiePose's translation parametrisation encodes the offset of the annotated 2D centroid of the object from the crop centre. On about a
+quarter of the T-LESS training crops this differs from the projection of the object's 3D centre (by up to about 2\,cm in $x,y$; depth
+is unaffected). The field is fitted at the true 3D centre, so that its geometry is consistent; the diffusion keeps LiePose's
+parametrisation, so at test time the field is queried at a hypothesis in that parametrisation.
+
+\paragraph{Loss and optimisation.}
+The weighted energy \cref{eq:energy} at the ground-truth pose, Adam with gradient clipping at 1.0, learning rate $2\cdot10^{-3}$ with a
+linear warm-up over $\min(1000, \text{steps}/10)$ steps and cosine decay to 5\%, batch 32. The density is never supervised.
+
+\paragraph{Checkpoint.}
+On SPEED+ the checkpoint with the highest $1$--$3^\circ$ discrimination on the synthetic validation split is kept (step 60k, the last
+evaluation); on T-LESS the checkpoint with the lowest mean pick error on 500 held-out training crops, the criterion of the retrieval world
+model (\cref{sec:supp-wm}). Test data are not used.
+
+% ==============================================================================================================================
+\section{Retrieval world model: training}
 \label{sec:supp-wm}
 
 \paragraph{Candidates.}
@@ -104,7 +142,7 @@ T-LESS: 3\% of the training source images are held out of the bank and of traini
 step of each variant, scored on held-out training images (\cref{sec:supp-disclose}).
 
 % ==============================================================================================================================
-\section{Geometry tokens}
+\section{Retrieval world model: geometry tokens}
 \label{sec:supp-geo}
 
 Let $K$ be the camera intrinsics and $(s,x_0,y_0)$ the zoom and origin of a crop, so that a crop pixel is $s(u-(x_0,y_0))$. A pose
@@ -187,9 +225,9 @@ SYMSOL-T & \method        & \pend & \pend & \pend \\
 \paragraph{At test time.}
 (i) Crops from ground-truth boxes on all benchmarks (\cref{sec:protocol}): visible box and visible mask on T-LESS and YCB-V, as in
 LiePose; the box of the keypoints projected with the ground-truth pose on SPEED+; the box of the rendered foreground on SYMSOL-T, where
-LiePose uses the full image. (ii) The object identity, used to choose the reference bank. (iii) Camera intrinsics, for geometry tokens.
-(iv) Tokens, poses and boxes of training crops, in the bank. No test image is in the bank, and no ground-truth pose is used by the
-model; ground truth is read only by the scorers and by rows and figures marked as diagnostics (oracle selection, oracle tokens, flip
+LiePose uses the full image. (ii) The object identity, which selects the object's tri-planes. (iii) The crop camera, box and intrinsics, with which the field
+renders. (iv) The frozen field. No training image is needed at test time; with the retrieval world model (\cref{sec:supp-ret}), the
+tokens, poses and boxes of training crops are in its bank, and no test image is. No ground-truth pose is used by the model; ground truth is read only by the scorers and by rows and figures marked as diagnostics (oracle selection, oracle tokens, flip
 timing, world-model discrimination).
 
 \paragraph{During training.}
@@ -205,6 +243,11 @@ refinement pick error on 500 of these images (the energy's choice among 24 rotat
 ground truth); the variant with the lowest score at its final step is used, a rule fixed before training. Test images were not used to
 train or select any of the four variants. However, the variants themselves were designed during an earlier development phase in which
 the same diagnostic was computed on 500 test images; we disclose this, and \cref{tab:abl-wm} reports every variant on the test set.
+
+\emph{Feature field.} The denoiser input of \method, $[\zobs,\zhat,\zhat-\zobs,w,\hlat]$, was chosen for the matched-budget runs after
+the six variants of \cref{tab:abl-den} had been evaluated at 100k steps on the SPEED+ lightbox and sunlamp test sets; the choice is
+therefore informed by test results. All six variants are reported. The field's architecture and box sizes were fixed before
+any denoiser was trained.
 
 \paragraph{Deviations from LiePose's setup.}
 64 instead of 256 noisy poses per training image for the control and \method; batch 64 for our T-LESS reproduction of LiePose
@@ -227,12 +270,13 @@ translation error below 2/5/10\,cm, as reported by LiePose. \TODO{fill.}}
 \toprule
 Method & R@2 & R@5 & R@10 & T@2 & T@5 & T@10 \\
 \midrule
-GDRNPP (detected boxes), as reported in~\cite{hsiao2024liepose} & 21.6 & 71.2 & 90.6 & 90.3 & 96.1 & 98.1 \\ % LiePose Tab. 4: 21.60 71.18 90.56 | 90.31 96.09 98.10
+GDRNPP (det.\ boxes), from~\cite{hsiao2024liepose} & 21.6 & 71.2 & 90.6 & 90.3 & 96.1 & 98.1 \\ % LiePose Tab. 4: 21.60 71.18 90.56 | 90.31 96.09 98.10
 LiePose~\cite{hsiao2024liepose}               & 47.2 & 86.9 & 94.8 & 71.7 & 92.0 & 97.2 \\ % LiePose Tab. 4 SE(3): 47.21 86.94 94.78 | 71.72 92.03 97.15
 LiePose (our training)                        & 50.5 & 86.7 & 92.3 & 74.1 & 91.7 & 96.8 \\ % BOP reS/teS recall, liepose_se3_400k_noema
-Control                                       & 11.3 & 47.1 & 76.4 & 34.8 & 69.5 & 88.2 \\ % lrc_dit_nowm_400k (EMA)
-\method                                       & 14.7 & 54.0 & 80.4 & 44.4 & 79.2 & 93.8 \\ % lrc_dit_400k (EMA)
-\method + selection                           & \pend & \pend & \pend & \pend & \pend & \pend \\
+Control (field), 100k                         & 10.0 & 45.7 & 76.6 & 26.8 & 57.1 & 83.6 \\ % tless-field field_nowm test_100000 Avg(30) reS/teS
+\method, 100k                                 & \pend & \pend & \pend & \pend & \pend & \pend \\
+Control (ret.), 400k                          & 11.3 & 47.1 & 76.4 & 34.8 & 69.5 & 88.2 \\ % lrc_dit_nowm_400k (EMA)
+\method (ret.), 400k                          & 14.7 & 54.0 & 80.4 & 44.4 & 79.2 & 93.8 \\ % lrc_dit_400k (EMA)
 \bottomrule
 \end{tabular}
 \end{table}
@@ -250,12 +294,12 @@ Split & Method & $S_q$ & $S_t$ & med.\ $e_q$ & med.\ $e_t$ & flips \\
 \midrule
 \multirow{4}{*}{lightbox} & LiePose (ours) & 0.203 & 0.031 & 3.0 & 0.095 & 4.2\% \\
                           & Control        & \pend & \pend & \pend & \pend & \pend \\
-                          & \method\ (geo.) & 0.647 & 0.055 & 8.1 & 0.196 & 18.2\% \\ % 400k sp_geo_v1
+                          & \method\ (ret., geo.) & 0.647 & 0.055 & 8.1 & 0.196 & 18.2\% \\ % 400k sp_geo_v1
                           & \method + sel. & \pend & \pend & \pend & \pend & \pend \\
 \midrule
 \multirow{4}{*}{sunlamp}  & LiePose (ours) & 0.260 & 0.029 & 5.0 & 0.107 & 5.5\% \\
                           & Control        & \pend & \pend & \pend & \pend & \pend \\
-                          & \method\ (geo.) & 0.669 & 0.047 & 9.0 & 0.189 & 19.7\% \\ % 400k sp_geo_v1
+                          & \method\ (ret., geo.) & 0.669 & 0.047 & 9.0 & 0.189 & 19.7\% \\ % 400k sp_geo_v1
                           & \method + sel. & \pend & \pend & \pend & \pend & \pend \\
 \bottomrule
 \end{tabular}
@@ -264,7 +308,7 @@ Split & Method & $S_q$ & $S_t$ & med.\ $e_q$ & med.\ $e_t$ & flips \\
 \begin{table}[h]
 \centering
 \caption{Training budget. The same denoiser at a short and at the matched budget (T-LESS AR \%, SPEED+ lightbox $S$, SYMSOL-T mean
-rotation error). \TODO{fill.}}
+rotation error), retrieval world model. \TODO{fill; add the field rows once its 400k runs are tested.}}
 \label{tab:supp-budget}
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -293,8 +337,8 @@ Variant (T-LESS) & $1$--$3^\circ$ & $3$--$10^\circ$ & selection error \\
 \midrule
 Per-object learned template (no reference)  & 0.59 & 0.77 & 13.7 \\ % results/probe/tless_v1_ceil/ceiling.json val (same candidates as tless_ret_v1)
 Retrieved reference, reconstruction loss only & \pend & \pend & \pend \\
-Retrieved reference, $\mathcal{L}_{\mathrm{WM}}$ (\method) & 0.53 & 0.64 & 7.2 \\ % results/probe/tless_ret_v1/ceiling.json val
-Feature field, reconstruction loss (no reference) & 0.53 & 0.66 & 14.2 \\ % logs/probe/tl_field_v1 (dtu001) step 100k val; same rotation candidates, translations at the true 3D centre
+Retrieved reference, $\mathcal{L}_{\mathrm{WM}}$ & 0.53 & 0.64 & 7.2 \\ % results/probe/tless_ret_v1/ceiling.json val
+Feature field, reconstruction loss (\method) & 0.53 & 0.66 & 14.2 \\ % logs/probe/tl_field_v1 (dtu001) step 100k val; same rotation candidates, translations at the true 3D centre
 \quad without symmetric equivalents in the bank & \pend & \pend & \pend \\
 \quad bank restricted to other objects (held-out objects) & \pend & \pend & \pend \\
 \bottomrule
@@ -312,3 +356,5 @@ Tab.~8.}
 Pose estimation of known objects supports robotic manipulation and autonomous spacecraft rendezvous. We see no specific risk beyond
 those of perception systems in general; for safety-critical use, the failure modes in \cref{fig:qual} and the reliance on
 ground-truth crops (\cref{sec:conclusion}) must be addressed first.
+
+\input{sec/X_ret}

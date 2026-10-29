@@ -1,52 +1,54 @@
 \section{Introduction}
 \label{sec:intro}
 
-Estimating the 6D pose of a known object from a single RGB image is ambiguous whenever the visible part of the object looks the same
-from several viewpoints: because of symmetry, because the distinguishing features are occluded, or because a texture-less object
-offers little to disambiguate~\cite{hodan2017tless,hodan2020epos,murphy2021ipdf}. Treating the pose as a distribution rather than a
-single value handles this ambiguity, and diffusion models on SE(3) have become an effective way to represent such distributions.
+Estimating the 6D pose of a known object from a single RGB image is ambiguous when the visible part of the object looks the same from
+several viewpoints. Symmetry causes this, as do occluded distinguishing features and texture-less surfaces that offer little to
+disambiguate~\cite{hodan2017tless,hodan2020epos,murphy2021ipdf}. Treating the pose as a distribution rather than a single value handles
+the ambiguity, and diffusion models on SE(3) have become an effective way to represent such distributions.
 LiePose~\cite{hsiao2024liepose} samples poses with a score-based diffusion process on SE(3) and reaches high accuracy on T-LESS
 without symmetry annotations.
 
 A diffusion denoiser, however, is an open-loop function. At each step it maps image features and the current noisy pose to a
-correction, and it never checks whether the current hypothesis is consistent with the image. The check is the core of
+correction, and it never checks whether the current hypothesis is consistent with the image. That check is the core of
 render-and-compare refinement~\cite{li2018deepim,labbe2020cosypose,labbe2022megapose,wen2024foundationpose}: render the object at the
-hypothesis, compare the rendering with the observation, update. Render-and-compare has been the most accurate final stage in BOP for
-years~\cite{hodan2020bop,sundermeyer2023bop22}, but it requires a renderer and a textured 3D model, it runs as a separate refiner after
-an initial estimate, and it does not by itself represent a multi-modal distribution.
+hypothesis, compare the rendering with the observation, and update. Render-and-compare has been the most accurate final stage in BOP
+for years~\cite{hodan2020bop,sundermeyer2023bop22}. It requires a renderer and a textured 3D model, however, runs as a separate refiner
+after an initial estimate, and does not by itself represent a multi-modal distribution.
 
 We ask whether the comparison can be moved into the diffusion process, in a learned feature space, so that every denoising step of
-every sample is conditioned on how well its hypothesis explains the image. This needs a model that answers the question ``what would
-the image features be if the object were at pose $g$?'' for arbitrary $g$, cheaply enough to be queried at every step. We build such a
-model as a world model in the sense of predictive latent models~\cite{assran2023ijepa,bardes2024vjepa,zhou2025dinowm}: it operates on
-frozen DINOv2~\cite{oquab2024dinov2} patch tokens, and predicts the tokens at a target pose from the tokens of a reference view and the
-relative pose between them. The reference is the nearest training view to the hypothesis, retrieved by pose, so the world model
-interpolates between nearby views instead of imagining the object from scratch. It is trained once per dataset with a pose-contrastive
-objective and then frozen.
+every sample is conditioned on how well its hypothesis explains the image. This needs a model that answers ``what would the image
+features be if the object were at pose $g$?'' for arbitrary $g$, cheaply enough to be queried at every step. We build such a model as a
+world model in the sense of predictive latent models~\cite{assran2023ijepa,bardes2024vjepa,zhou2025dinowm}, with the object pose as
+its action. It operates on frozen DINOv2~\cite{oquab2024dinov2} patch tokens, and it is a \emph{feature field}: tri-plane
+features~\cite{chan2022eg3d} and a small MLP give, at every point in a box around the object, a density and a latent vector. The field
+renders the tokens at a pose by volume rendering~\cite{mildenhall2020nerf} rays through the observation's crop, and it is fitted
+once per dataset to the tokens of posed training crops. Everything it renders is a DINOv2 token or a latent. It has no RGB output and is
+given no surface, mesh or texture; its geometry is whatever density best explains the tokens. Because the field renders a pose rather
+than borrowing a nearby training view, a small rotation of the hypothesis moves every ray by exactly that rotation. Its prediction
+carries no lighting, background or occlusion of another image.
 
-Our method, \method (Latent Render-and-Compare), is a new architecture for diffusion-based pose estimation built around this world
-model (\cref{fig:teaser}). It replaces the usual image-encoder-plus-pose-MLP denoiser with a closed loop: at every step, each sample
-retrieves a reference at its current pose, the world model predicts the tokens at that pose in the observation's crop, and a token
-transformer reads the observed tokens, the predicted tokens and their difference, conditioned on the noise level and the pose. The
-image encoder is a frozen foundation model, and the pose is grounded through a bank of posed training views rather than learned into
-network weights. The same predicted tokens define an energy, the foreground-weighted distance to the observation, which ranks a set of
-samples at test time without ground truth. We compare against a control that is identical to \method except that the predicted
-tokens are set to zero, so that the contribution of the comparison is measured in isolation.
+Our method, \method (Latent Render-and-Compare), is a diffusion-based pose estimator built around this world model
+(\cref{fig:teaser}). It replaces the usual image-encoder-plus-pose-MLP denoiser with a closed loop. At every step the field renders,
+for each sample's current pose, the tokens in the observation's crop and the field's latent at the surface each ray hits. A token
+transformer reads the observed tokens, the rendered tokens, their difference and the latent, conditioned on the noise level and the
+pose. The image encoder is a frozen foundation model, and the object's appearance as a function of pose is held by the frozen field
+rather than learned into the denoiser. The same rendering defines an energy, the foreground-weighted distance to the observation, which
+ranks a set of samples at test time without ground truth. We compare against a control that is identical to \method except that it
+receives no rendered quantity, so the contribution of the comparison is measured in isolation.
 
-We evaluate on four benchmarks with different sources of ambiguity: T-LESS~\cite{hodan2017tless} and
-YCB-V~\cite{xiang2018posecnn} under the BOP protocol~\cite{hodan2018bop}, the SPEED+ spacecraft benchmark~\cite{park2022speedplus}
-with the official SPEC2021 score, and SYMSOL-T~\cite{hsiao2024liepose}. All our models, the control and LiePose are trained with the
-same number of training images. \TODO{summarise the main findings in one paragraph once Tabs.~\ref{tab:bop}--\ref{tab:symsolt} are
-filled; no claim before the numbers exist.}
+We evaluate on T-LESS~\cite{hodan2017tless} under the BOP protocol~\cite{hodan2018bop} and on the SPEED+ spacecraft
+benchmark~\cite{park2022speedplus} with the official SPEC2021 score, against LiePose and the control trained by us with the same data
+and crops. We also report what the field can discriminate on its own, and compare it with a retrieval-referenced world model that
+predicts tokens from the nearest training view (\cref{sec:supp-ret}). \TODO{summarise the main findings in one paragraph once
+Tabs.~\ref{tab:bop}--\ref{tab:speedplus} are filled; no claim before the numbers exist.}
 
 \noindent Our contributions are:
 \begin{itemize}
-\item A feature-space world model for object pose: it predicts DINOv2 patch tokens at an arbitrary pose from a retrieved
-reference view, with optional geometry tokens that make small pose changes explicit as image displacements
-(\cref{sec:wm}).
-\item \method, a closed-loop denoising architecture for SE(3) diffusion: a frozen foundation-model encoder, retrieval of posed
-reference views, and a token transformer that compares the world model's prediction at its current hypothesis with the observation at
-every step, together with an energy for selecting among samples without ground truth (\cref{sec:den,sec:select}).
-\item A controlled evaluation on four benchmarks against LiePose at a matched training budget and a no-world-model control, with
-analyses of when the comparison helps during sampling and what the world model can and cannot discriminate (\cref{sec:exp}).
+\item A feature-field world model for object pose. It renders frozen DINOv2 tokens at an arbitrary pose by volume rendering a
+tri-plane field, is fitted once from posed training crops, and needs no reference view or textured model (\cref{sec:wm}).
+\item \method, a closed-loop denoising architecture for SE(3) diffusion. A frozen foundation-model encoder and a token transformer
+compare the field's rendering at the current hypothesis with the observation at every step. The same rendering gives an energy for
+selecting among samples without ground truth (\cref{sec:den,sec:select}).
+\item A controlled evaluation against LiePose at a matched training budget and a no-world-model control, with ablations of what the
+denoiser reads from the field and an analysis of what the field can and cannot discriminate (\cref{sec:exp}).
 \end{itemize}
