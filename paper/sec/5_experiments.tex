@@ -113,7 +113,7 @@ SPEC2021, lava1302~\cite{park2023spec2021}$^\P$       & -- & 1 & -- & 6.7 & 0.16
 \multicolumn{9}{@{}l}{\emph{Trained by us, synthetic only, GT keypoint box, matched number of training images (400k $\times$ 64)}} \\
 LiePose (our training)                       & GT  & 1 & 0.183 & 11.6 & 0.234 & 0.175 & 14.9 & 0.289 \\ % EMA (tab:supp-ema); logs/speedplus_test/liepose_se3_400k
 \quad + consensus                            & GT  & 16 & 0.170 & 7.8 & 0.165 & 0.163 & 11.2 & 0.223 \\ % results/speedplus_test/consensus/liepose_400k_{lightbox,sunlamp}.json
-Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % dtu004 speedplus-field field_nowm 400k (fds-nowm, running)
+Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % dtu004 speedplus-field field_nowm 400k test_400000/esa.json (test-script weights): 0.338/45.5/0.854 | 0.310/42.4/0.793 -- worse than 100k; held until the EMA/live check of tab:supp-ema
 \method                                      & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % dtu004 speedplus-field field_full_lat 400k (fds-lat, running)
 \method + selection                          & GT  & $N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
 \quad + consensus                            & GT  & 16 & \pend & \pend & \pend & \pend & \pend & \pend \\
