@@ -22,8 +22,8 @@ $S=\tfrac{1}{n}\sum(e_q^{\mathrm{rad}}+e_t/\|t\|)$ with the competition's precis
 \paragraph{Baselines and training budget.}
 The main baseline is LiePose~\cite{hsiao2024liepose}, which we retrain with its public code. The matched budget is LiePose's number of
 training images: 400k steps with batch 64. Because every noisy pose of \method queries the world model, we use 64 noisy poses per
-image instead of LiePose's 256; the control uses the same 64. Ablations use a quarter of the budget, 100k steps with batch 32 and
-16 noisy poses per image, for every row. Our T-LESS LiePose run uses batch 64 where the paper uses 32, and the control and \method draw
+image instead of LiePose's 256; the control uses the same 64. Ablations use 100k steps with batch 32 and 16 noisy poses per image
+for every row, an eighth of the matched number of training images. Our T-LESS LiePose run uses batch 64 where the paper uses 32, and the control and \method draw
 from a fixed set of pre-augmented crops (\cref{sec:supp-disclose}). We evaluate the final checkpoint of every run; no checkpoint is
 chosen on test data. Published numbers of other methods are copied from their papers and marked by protocol.
 
@@ -68,7 +68,7 @@ Control (no world model)            & DINOv2-S  & GT & 1 & \pend & \pend & \pend
 \method                             & DINOv2-S  & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % tless_field_dit field_full_lat 400k: not run
 \method + selection                 & DINOv2-S  & GT & $N$ & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
 \midrule
-\multicolumn{12}{@{}l}{\emph{Trained by us, ground-truth crops, a quarter of the budget (100k $\times$ 32, 16 noisy poses)}} \\
+\multicolumn{12}{@{}l}{\emph{Trained by us, ground-truth crops, 100k $\times$ 32 (an eighth of the training images, 16 noisy poses)}} \\
 Control (no world model)            & DINOv2-S  & GT & 1 & 21.5 & 24.9 & 75.2 & 40.5 & \pend & \pend & \pend & \pend \\ % dtu001 tless-field/...field_nowm+field=tl_field_v1/test_100000/evaluation_summary.txt Avg(30)
 \method                             & DINOv2-S  & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % tless-field field_full_lat 100k: test running (dtu001 1125453)
 Control, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % field_nowm_ft: stopped before its test
@@ -118,7 +118,7 @@ Control (no world model)                     & GT  & 1 & \pend & \pend & \pend &
 \method + selection                          & GT  & $N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
 \quad + consensus                            & GT  & 16 & \pend & \pend & \pend & \pend & \pend & \pend \\
 \midrule
-\multicolumn{9}{@{}l}{\emph{Trained by us, a quarter of the budget (100k $\times$ 32, 16 noisy poses)}} \\
+\multicolumn{9}{@{}l}{\emph{Trained by us, 100k $\times$ 32 (an eighth of the training images, 16 noisy poses)}} \\
 Control (no world model)                     & GT  & 1 & 0.358 & 43.8 & 0.827 & 0.308 & 39.6 & 0.743 \\ % results/speedplus_field_dit/frozen_100k_full_nowm.txt (field_nowm)
 \method                                      & GT  & 1 & 0.285 & 37.5 & 0.705 & 0.244 & 34.5 & 0.643 \\ % frozen_100k_lat_drop.txt (field_full_lat)
 \midrule
@@ -140,12 +140,12 @@ Control (no world model)                     & GT  & 1 & \pend & \pend & \pend &
 control, and with published methods. \TODO{describe once the rows are filled: (i) \method vs control (the effect of the comparison),
 (ii) \method vs LiePose (ours), (iii) where the difference comes from, using the rotation and translation accuracies of
 \cref{tab:supp-tless-rt}, (iv) the effect of selection. Do not compare GT-crop rows with detector rows.}
-On T-LESS the retrieval-referenced world model of \cref{sec:supp-ret} is so far the stronger variant. At a quarter of the budget it
+On T-LESS the retrieval-referenced world model of \cref{sec:supp-ret} is so far the stronger variant. At 100k $\times$ 32 it
 raises AR from 41.2 to 54.7 over its own control (\cref{tab:supp-ret-bop}), while the field's discrimination on T-LESS is weaker at
 coarse rotations (\cref{tab:wm-disc}). \TODO{revise once the field's T-LESS rows are filled.}
 
 \paragraph{SPEED+.}
-\Cref{tab:speedplus} reports the full lightbox and sunlamp sets. At a quarter of the budget, \method lowers the score from 0.827 to
+\Cref{tab:speedplus} reports the full lightbox and sunlamp sets. At 100k $\times$ 32, \method lowers the score from 0.827 to
 0.705 on lightbox and from 0.743 to 0.643 on sunlamp relative to the control, with lower rotation and translation errors on both.
 Both are far from LiePose at the full budget (0.234 / 0.289). With a trained encoder (\cref{sec:den}) and 100k steps of batch 64,
 \method reaches 0.412 / 0.480. This run differs from the rows above in both the encoder and the batch, and its control with a trained
@@ -227,8 +227,8 @@ much any selection rule could gain; the energy column shows how much of this the
 \caption{\textbf{What the world model can discriminate.} For held-out observations, the probability that the energy of a perturbed pose
 exceeds that of the ground-truth pose (0.5 = chance), by size of the rotation perturbation, and for translation perturbations.
 Grey: the retrieval-referenced world model (\cref{sec:supp-ret}), references retrieved at a noisy ground truth. T-LESS: the same
-500 held-out training crops for both. $^\circ$SPEED+ field: 300 crops of the synthetic validation split, 6 perturbations per bin;
-SPEED+ retrieval: 3000 crops, 2 per bin.}
+500 held-out training crops for both, which also chose each model's checkpoint. SPEED+: 300 crops of the synthetic validation split,
+6 perturbations per bin; this split also chose the field's checkpoint.}
 \label{tab:wm-disc}
 \small
 \setlength{\tabcolsep}{4pt}
@@ -240,8 +240,8 @@ SPEED+ retrieval: 3000 crops, 2 per bin.}
 \midrule
 T-LESS, field                  & 0.53 & 0.66 & 0.86 & 0.66 \\ % dtu001 logs/probe/tl_field_v1 final val (Ceiling, same rows as tless_ret_v1)
 \color{gray}T-LESS, retrieval  & \color{gray}0.53 & \color{gray}0.64 & \color{gray}0.92 & \color{gray}0.60 \\ % results/probe/tless_ret_v1/ceiling.json val
-SPEED+, field$^\circ$          & 0.64 & 0.83 & 0.98 & \pend \\ % logs/probe/sp_field_v1 log.jsonl step 60000 val (P 0.25-1 0.51, twin 0.98)
-\color{gray}SPEED+, retrieval  & \color{gray}0.54 & \color{gray}0.64 & \color{gray}0.90 & \pend \\ % scripts/speedplus/wm_disc.py, sp_ret_v1
+SPEED+, field                  & 0.65 & 0.84 & 0.98 & \pend \\ % logs/probe/sp_field_v1 log.jsonl step 50000 val = saved params (best P 1-3): 0.6506 / 0.8428 / 0.9750, P 0.25-1 0.517, twin 0.982
+\color{gray}SPEED+, retrieval  & \pend & \pend & \pend & \pend \\ % not yet under the field's protocol (wm_eval.Eval); earlier protocols: wm_disc.py 0.54/0.64/0.90, Ceiling 0.54/0.69/0.97/tran 0.72
 YCB-V, field                   & \pend & \pend & \pend & \pend \\
 \bottomrule
 \end{tabular}
@@ -249,9 +249,9 @@ YCB-V, field                   & \pend & \pend & \pend & \pend \\
 
 \paragraph{What the world model can and cannot see.}
 \Cref{tab:wm-disc} measures the world model on its own, independently of the denoiser: how reliably its energy prefers the true pose
-over perturbed ones. On SPEED+ the field separates the true pose from perturbations of $3$--$10^\circ$ in 83\% of cases and from
-$10$--$30^\circ$ in 98\%, against 64\% and 90\% for the retrieval model, and it tells the true pose from its $180^\circ$ twins in 98\%. Below
-$1^\circ$ it is at chance (0.51). On T-LESS the field is no better than retrieval at fine rotations (0.53 at $1$--$3^\circ$), slightly
+over perturbed ones. On SPEED+ the field prefers the true pose over perturbations of $3$--$10^\circ$ in 84\% of cases and of
+$10$--$30^\circ$ in 98\%, and over its $180^\circ$ twins in 98\%. Below $1^\circ$ it is at chance (0.52). \TODO{retrieval on SPEED+ under the same
+protocol.} On T-LESS the field is no better than retrieval at fine rotations (0.53 at $1$--$3^\circ$), slightly
 better at $3$--$10^\circ$ and in translation, and worse at $10$--$30^\circ$ (0.86 vs 0.92). The pose its energy picks among candidates has a
 median error of $3.4^\circ$ but a mean of $14.2^\circ$, against a mean of $7.2^\circ$ for retrieval (\cref{tab:supp-wm-design}): the field makes
 more gross errors. We have not established why the field is weaker on T-LESS than on SPEED+; the objects are small, texture-less and

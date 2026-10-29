@@ -5,7 +5,7 @@ image. Render-and-compare refiners do perform this check. They need a renderer a
 stage after an initial estimate. We propose \method, a pose-estimation architecture that carries out this comparison in a learned feature
 space inside every denoising step. Its world model is a feature field of the object: tri-planes and a small MLP, fitted once to the
 frozen DINOv2 tokens of posed training crops. It renders by volume rendering the tokens that the object would produce at any pose
-hypothesis, in the observation's crop. The field needs no reference image, CAD model or RGB reconstruction, and its 3D structure is
+hypothesis, in the observation's crop. The field needs no reference image, CAD mesh or RGB reconstruction, and its 3D structure is
 learned only from the tokens. At every denoising step and for every sample, the denoiser receives the observed tokens, the tokens
 rendered at its current hypothesis, their difference, and the field's latent at the surface each ray hits. A control that removes only
 the rendered quantities isolates the effect of the comparison. We evaluate on T-LESS under the BOP protocol, on the SPEED+ spacecraft
