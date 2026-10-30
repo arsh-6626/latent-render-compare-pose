@@ -31,6 +31,7 @@ def main():
   p.add_argument("--samples", required=True)
   p.add_argument("--crops", required=True)
   p.add_argument("--out", default=None)
+  p.add_argument("--allow_partial", action="store_true", help="val sweeps on the first n crops only (never for test splits)")
   a = p.parse_args()
   sm = np.load(a.samples)
   idx, R, t = sm["index"].astype(np.int64), sm["R"].astype(np.float64), sm["t"].astype(np.float64)
@@ -38,7 +39,8 @@ def main():
   ci = np.concatenate([x["index"] for x in sh])
   pos = {int(i): r for r, i in enumerate(ci)}
   g = np.array([pos[int(i)] for i in idx])
-  assert len(np.unique(idx)) == len(ci), "samples do not cover the full split"
+  assert a.allow_partial or len(np.unique(idx)) == len(ci), "samples do not cover the full split"
+  assert not (a.allow_partial and os.path.basename(os.path.normpath(a.crops)) in ("lightbox", "sunlamp")), "test splits are scored in full"
   R_gt = Rotation.from_quat(np.roll(np.concatenate([x["rotation"] for x in sh])[g], -1, -1)).as_matrix()
   t_gt = np.concatenate([x["translation"] for x in sh])[g].astype(np.float64)
   n, S = R.shape[:2]
