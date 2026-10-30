@@ -125,6 +125,7 @@ Control (no world model)                     & GT  & 1 & 0.358 & 43.8 & 0.827 & 
 \multicolumn{9}{@{}l}{\emph{Trained by us, trained encoder$^\ddagger$, 100k $\times$ 64 (a quarter of the steps, 64 noisy poses)}} \\
 Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % field_nowm_ft: stopped before its test
 \method                                      & GT  & 1 & 0.155 & 22.1 & 0.412 & 0.219 & 25.4 & 0.480 \\ % results/speedplus_field_dit/ft_100k_full_lat_ft_esa.json (dtu004 speedplus-field-ft field_full_lat_ft test_100000)
+\quad + consensus                            & GT  & 16 & 0.129 & 15.7 & 0.296 & 0.195 & 19.4 & 0.371 \\ % results/speedplus_branch/test/plain_{lightbox,sunlamp}.json (test_branch.py K=1, 16 chains, seed+5)
 \midrule
 \color{gray}Oracle selection among the same $N$ (diagnostic) & \color{gray}GT & \color{gray}$N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
 \bottomrule

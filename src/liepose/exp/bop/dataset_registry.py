@@ -32,6 +32,31 @@ register_dataset(
   filter_invalid=True,
 )
 
+##### YCBV #####
+
+register_dataset(
+  "ycbv",
+  "ycbv-train_pbr",
+  datadir("bop_datasets/ycbv/train_pbr/"),
+  datadir("bop_datasets/ycbv/models/models_info.json"),
+)
+
+register_dataset(
+  "ycbv",
+  "ycbv-train_real",
+  datadir("bop_datasets/ycbv/train_real/"),
+  datadir("bop_datasets/ycbv/models/models_info.json"),
+)
+
+register_dataset(
+  "ycbv",
+  "ycbv-test",
+  datadir("bop_datasets/ycbv/test/"),
+  datadir("bop_datasets/ycbv/models/models_info.json"),
+  test_bop_path=datadir("bop_datasets/ycbv/test_targets_bop19.json"),
+  filter_invalid=True,  # as tless-test_primesense: drops instances without a valid visible box / mask
+)
+
 ##### ICBIN #####
 
 register_dataset(
