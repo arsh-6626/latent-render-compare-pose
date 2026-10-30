@@ -115,29 +115,44 @@ class Testbed(tless_dit.Testbed):
     lie_metrics, loss_name, model = self.lie_metrics, self.a.loss_name, self.model
     assert self.a.learn_noise
 
+    def loss_fn(params, mb):
+      """mb: (part of) a batch; per-image keys (fg, tok / image, keep) and per-slice keys, slices image-major"""
+      t = mb["t"].reshape((-1, 1)).astype(jnp.float32)
+      s = mb["rt"].shape[0] // mb["fg"].shape[0]
+      w = jnp.repeat(FG_FLOOR + mb["fg"], s, 0)
+      keep = jnp.repeat(mb["keep"], s, 0) if "keep" in mb else None
+      z_ext = None
+      if "image" in mb:  # frozen copy -> z_obs (the field's comparison space), trainable copy -> z_ext
+        z_obs, z_ext = model.apply({"params": params}, mb["image"], method=FtFieldDenoiser.encode)
+        z_ext = jnp.repeat(z_ext, s, 0)
+      else:
+        z_obs = mb["tok"].astype(jnp.float32)
+      z_obs = jnp.repeat(z_obs, s, 0)
+      z_hat, opa, h = self._render(mb["obj"], mb["Rg"], mb["tg"], mb["kg"], z_obs)
+      mu = model.apply({"params": params}, mb["rt"], t, mb["kg"], z_obs, w, z_hat, opa, h, keep, z_ext)
+      return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(mb["zt"], mu))
+
     def update_fn(state, batch):
-      t = batch["t"].reshape((-1, 1)).astype(jnp.float32)
-      n_img = batch["fg"].shape[0]
-      s = batch["rt"].shape[0] // n_img
-      w = jnp.repeat(FG_FLOOR + batch["fg"], s, 0)
-      keep = None
+      keys = ("rt", "t", "zt", "Rg", "tg", "kg", "obj", "fg") + tuple(k for k in ("tok", "image") if k in batch)
+      mb = {k: batch[k] for k in keys}
+      n_img = mb["fg"].shape[0]
       if self.base_mode == "field_drop":  # per image (all its slices), from the step's noise draws (no extra rng state)
         u = jax.random.uniform(jax.random.fold_in(jax.random.PRNGKey(0), state.step), (n_img,))
-        keep = jnp.repeat((u >= self.a.drop_p).astype(jnp.float32), s, 0)
+        mb["keep"] = (u >= self.a.drop_p).astype(jnp.float32)
+      m = self.a.grad_accum
+      if m == 1:
+        loss, grads = jax.value_and_grad(loss_fn)(state.params, mb)
+      else:  # the same mean loss over m image-major chunks, sequentially (sp_field_dit.update_fn)
+        assert n_img % m == 0, (n_img, m)
+        chunks = jax.tree_util.tree_map(lambda x: x.reshape((m, x.shape[0] // m) + x.shape[1:]), mb)
 
-      def loss_fn(params):
-        z_ext = None
-        if "image" in batch:  # frozen copy -> z_obs (the field's comparison space), trainable copy -> z_ext
-          z_obs, z_ext = model.apply({"params": params}, batch["image"], method=FtFieldDenoiser.encode)
-          z_ext = jnp.repeat(z_ext, s, 0)
-        else:
-          z_obs = batch["tok"].astype(jnp.float32)
-        z_obs = jnp.repeat(z_obs, s, 0)
-        z_hat, opa, h = self._render(batch["obj"], batch["Rg"], batch["tg"], batch["kg"], z_obs)
-        mu = model.apply({"params": params}, batch["rt"], t, batch["kg"], z_obs, w, z_hat, opa, h, keep, z_ext)
-        return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(batch["zt"], mu))
+        def acc(carry, c):
+          l, g = jax.value_and_grad(loss_fn)(state.params, c)
+          return jax.tree_util.tree_map(jnp.add, carry, (l, g)), None
 
-      loss, grads = jax.value_and_grad(loss_fn)(state.params)
+        zero = (jnp.zeros(()), jax.tree_util.tree_map(jnp.zeros_like, state.params))
+        (loss, grads), _ = jax.lax.scan(acc, zero, chunks)
+        loss, grads = jax.tree_util.tree_map(lambda x: x / m, (loss, grads))
       return loss, state.apply_gradients(grads=grads)
 
     return update_fn
@@ -222,6 +237,7 @@ def build_explorations():
   e.field_dir = [None]
   e.drop_p = [0.5]
   e.tl_cache = [None]  # token cache with {split}_crop_meta.npy (default $DATADIR/tless_tokens)
+  e.grad_accum = [1]  # micro-batches per step (same gradient, less memory; sp_field_dit)
   return e
 
 
