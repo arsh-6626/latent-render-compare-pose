@@ -1,0 +1,320 @@
+{
+ "valaug_K16_f0.3": {
+  "score": {
+   "samples": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K16_f0.3/val_aug_samples.npz",
+   "n": 400,
+   "S": 16,
+   "sample0": {
+    "score": 0.8933230750332888,
+    "score_ori": 0.8567540881658254,
+    "score_pos": 0.03656898686746321,
+    "e_q_deg_mean": 49.09325930309322,
+    "e_q_deg_median": 0.9062894804344402,
+    "e_t_m_mean": 0.20927549013609983,
+    "e_t_m_median": 0.030385385607859722,
+    "e_q_gt10": 0.345,
+    "e_q_gt90": 0.3075
+   },
+   "consensus": {
+    "score": 0.2189920937708527,
+    "score_ori": 0.2071929392938176,
+    "score_pos": 0.011799154477035166,
+    "e_q_deg_mean": 11.878032766479592,
+    "e_q_deg_median": 0.5737212845688456,
+    "e_t_m_mean": 0.07414974478049308,
+    "e_t_m_median": 0.014862071694923571,
+    "e_q_gt10": 0.09,
+    "e_q_gt90": 0.0675
+   }
+  },
+  "info": {
+   "args": {
+    "den_mode": "field_full_lat_ft",
+    "field_dir": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field_v1",
+    "restore": "/media/kavinder/hdd2/liepose_data/logs/ffl_ft_ckpt",
+    "step": 100000,
+    "out": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K16_f0.3",
+    "splits": [
+     "val_aug"
+    ],
+    "n_samples": 16,
+    "K": 16,
+    "branch_frac": 0.3,
+    "steps": 100,
+    "crops_per_batch": 16,
+    "limit": 400
+   },
+   "n_branch_steps": 30,
+   "ema": true,
+   "val_aug": {
+    "n": 400,
+    "seconds": 582.8906228542328
+   }
+  }
+ },
+ "valaug_K1_f0.0": {
+  "score": {
+   "samples": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K1_f0.0/val_aug_samples.npz",
+   "n": 400,
+   "S": 16,
+   "sample0": {
+    "score": 0.32449660505364863,
+    "score_ori": 0.3009569334043895,
+    "score_pos": 0.02353967164925908,
+    "e_q_deg_mean": 17.24950901967475,
+    "e_q_deg_median": 0.6289414440084655,
+    "e_t_m_mean": 0.13821644324909063,
+    "e_t_m_median": 0.017263997542741806,
+    "e_q_gt10": 0.1375,
+    "e_q_gt90": 0.11
+   },
+   "consensus": {
+    "score": 0.15461869997477376,
+    "score_ori": 0.141262383224059,
+    "score_pos": 0.013356316750714765,
+    "e_q_deg_mean": 8.10157135426809,
+    "e_q_deg_median": 0.5628907255782233,
+    "e_t_m_mean": 0.08468537160300066,
+    "e_t_m_median": 0.014766978947887716,
+    "e_q_gt10": 0.0675,
+    "e_q_gt90": 0.0425
+   }
+  },
+  "info": {
+   "args": {
+    "den_mode": "field_full_lat_ft",
+    "field_dir": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field_v1",
+    "restore": "/media/kavinder/hdd2/liepose_data/logs/ffl_ft_ckpt",
+    "step": 100000,
+    "out": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K1_f0.0",
+    "splits": [
+     "val_aug"
+    ],
+    "n_samples": 16,
+    "K": 1,
+    "branch_frac": 0.0,
+    "steps": 100,
+    "crops_per_batch": 16,
+    "limit": 400
+   },
+   "n_branch_steps": 0,
+   "ema": true,
+   "val_aug": {
+    "n": 400,
+    "seconds": 151.0673313140869
+   }
+  }
+ },
+ "valaug_K4_f0.3": {
+  "score": {
+   "samples": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K4_f0.3/val_aug_samples.npz",
+   "n": 400,
+   "S": 16,
+   "sample0": {
+    "score": 0.40936338022914603,
+    "score_ori": 0.38420107113707014,
+    "score_pos": 0.02516230909207594,
+    "e_q_deg_mean": 22.019641620259122,
+    "e_q_deg_median": 0.6492902922474967,
+    "e_t_m_mean": 0.14705885858089845,
+    "e_t_m_median": 0.017362891549346747,
+    "e_q_gt10": 0.165,
+    "e_q_gt90": 0.1325
+   },
+   "consensus": {
+    "score": 0.17006057842101413,
+    "score_ori": 0.15763925185020422,
+    "score_pos": 0.012421326570809967,
+    "e_q_deg_mean": 9.040707199868331,
+    "e_q_deg_median": 0.5674772130939405,
+    "e_t_m_mean": 0.07456741812167525,
+    "e_t_m_median": 0.014672546442356847,
+    "e_q_gt10": 0.07,
+    "e_q_gt90": 0.045
+   }
+  },
+  "info": {
+   "args": {
+    "den_mode": "field_full_lat_ft",
+    "field_dir": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field_v1",
+    "restore": "/media/kavinder/hdd2/liepose_data/logs/ffl_ft_ckpt",
+    "step": 100000,
+    "out": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K4_f0.3",
+    "splits": [
+     "val_aug"
+    ],
+    "n_samples": 16,
+    "K": 4,
+    "branch_frac": 0.3,
+    "steps": 100,
+    "crops_per_batch": 16,
+    "limit": 400
+   },
+   "n_branch_steps": 30,
+   "ema": true,
+   "val_aug": {
+    "n": 400,
+    "seconds": 272.22505235671997
+   }
+  }
+ },
+ "valaug_K8_f0.1": {
+  "score": {
+   "samples": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K8_f0.1/val_aug_samples.npz",
+   "n": 400,
+   "S": 16,
+   "sample0": {
+    "score": 0.4439123949570487,
+    "score_ori": 0.4162550893745676,
+    "score_pos": 0.02765730558248105,
+    "e_q_deg_mean": 23.85508723036592,
+    "e_q_deg_median": 0.6846038537373877,
+    "e_t_m_mean": 0.17080846001543662,
+    "e_t_m_median": 0.01890962802733029,
+    "e_q_gt10": 0.1825,
+    "e_q_gt90": 0.15
+   },
+   "consensus": {
+    "score": 0.16058540343262606,
+    "score_ori": 0.1471925800735008,
+    "score_pos": 0.013392823359125226,
+    "e_q_deg_mean": 8.442211729945798,
+    "e_q_deg_median": 0.563678949044996,
+    "e_t_m_mean": 0.08517804602317985,
+    "e_t_m_median": 0.016082589667993828,
+    "e_q_gt10": 0.0675,
+    "e_q_gt90": 0.04
+   }
+  },
+  "info": {
+   "args": {
+    "den_mode": "field_full_lat_ft",
+    "field_dir": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field_v1",
+    "restore": "/media/kavinder/hdd2/liepose_data/logs/ffl_ft_ckpt",
+    "step": 100000,
+    "out": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K8_f0.1",
+    "splits": [
+     "val_aug"
+    ],
+    "n_samples": 16,
+    "K": 8,
+    "branch_frac": 0.1,
+    "steps": 100,
+    "crops_per_batch": 16,
+    "limit": 400
+   },
+   "n_branch_steps": 10,
+   "ema": true,
+   "val_aug": {
+    "n": 400,
+    "seconds": 215.86472249031067
+   }
+  }
+ },
+ "valaug_K8_f0.3": {
+  "score": {
+   "samples": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K8_f0.3/val_aug_samples.npz",
+   "n": 400,
+   "S": 16,
+   "sample0": {
+    "score": 0.6469228623971918,
+    "score_ori": 0.6153474247966034,
+    "score_pos": 0.031575437600588285,
+    "e_q_deg_mean": 35.26315803454435,
+    "e_q_deg_median": 0.7128940985973587,
+    "e_t_m_mean": 0.1881113335739834,
+    "e_t_m_median": 0.02203753701641476,
+    "e_q_gt10": 0.25,
+    "e_q_gt90": 0.2225
+   },
+   "consensus": {
+    "score": 0.2045411094489104,
+    "score_ori": 0.19076129925400018,
+    "score_pos": 0.013779810194910242,
+    "e_q_deg_mean": 10.938308811217373,
+    "e_q_deg_median": 0.5686839602086847,
+    "e_t_m_mean": 0.08398947657003922,
+    "e_t_m_median": 0.01520589715760414,
+    "e_q_gt10": 0.0825,
+    "e_q_gt90": 0.0575
+   }
+  },
+  "info": {
+   "args": {
+    "den_mode": "field_full_lat_ft",
+    "field_dir": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field_v1",
+    "restore": "/media/kavinder/hdd2/liepose_data/logs/ffl_ft_ckpt",
+    "step": 100000,
+    "out": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K8_f0.3",
+    "splits": [
+     "val_aug"
+    ],
+    "n_samples": 16,
+    "K": 8,
+    "branch_frac": 0.3,
+    "steps": 100,
+    "crops_per_batch": 16,
+    "limit": 400
+   },
+   "n_branch_steps": 30,
+   "ema": true,
+   "val_aug": {
+    "n": 400,
+    "seconds": 372.4543619155884
+   }
+  }
+ },
+ "valaug_K8_f0.5": {
+  "score": {
+   "samples": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K8_f0.5/val_aug_samples.npz",
+   "n": 400,
+   "S": 16,
+   "sample0": {
+    "score": 0.8503292380694701,
+    "score_ori": 0.816188044955301,
+    "score_pos": 0.0341411931141692,
+    "e_q_deg_mean": 46.76935324742357,
+    "e_q_deg_median": 0.8292029002133351,
+    "e_t_m_mean": 0.19563912308137837,
+    "e_t_m_median": 0.029274258345858145,
+    "e_q_gt10": 0.3275,
+    "e_q_gt90": 0.295
+   },
+   "consensus": {
+    "score": 0.2425153190417879,
+    "score_ori": 0.22854191280041392,
+    "score_pos": 0.013973406241374007,
+    "e_q_deg_mean": 13.101769895266123,
+    "e_q_deg_median": 0.5779691098520142,
+    "e_t_m_mean": 0.08251154712502068,
+    "e_t_m_median": 0.016024265112976374,
+    "e_q_gt10": 0.0975,
+    "e_q_gt90": 0.075
+   }
+  },
+  "info": {
+   "args": {
+    "den_mode": "field_full_lat_ft",
+    "field_dir": "/media/kavinder/hdd2/liepose_data/logs/probe/sp_field_v1",
+    "restore": "/media/kavinder/hdd2/liepose_data/logs/ffl_ft_ckpt",
+    "step": 100000,
+    "out": "/media/kavinder/hdd2/liepose_data/logs/branch_sweep/valaug_K8_f0.5",
+    "splits": [
+     "val_aug"
+    ],
+    "n_samples": 16,
+    "K": 8,
+    "branch_frac": 0.5,
+    "steps": 100,
+    "crops_per_batch": 16,
+    "limit": 400
+   },
+   "n_branch_steps": 50,
+   "ema": true,
+   "val_aug": {
+    "n": 400,
+    "seconds": 514.9085211753845
+   }
+  }
+ }
+}
