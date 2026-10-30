@@ -1,0 +1,48 @@
+#!/bin/bash
+# YCB-V (BOP_DS=ycbv, code_ycbv) copy of tless_field_std.pbs: feature-field world model (liepose.exp.jepa_probe.tless_field), then optionally the diffusion with it in the
+# loop (liepose.exp.cmp.tless_field_dit); standard queue, either account (reads dtu001's data, writes under W).
+#   STAGE=field  : field -> $W/probe/${FIELD:-yc_field_v1}
+#   STAGE=den    : tless_field_dit, MODE (field_full_lat / field_nowm / ... / *_ft), STEPS (100000), SEED (42)
+#   j=$(qsub -N ycf-v1 -v STAGE=field ycbv_field_std.pbs)
+#   qsub -N ycf-lat -W depend=afterok:$j -v STAGE=den,MODE=field_full_lat ycbv_field_std.pbs
+# matched budget (LiePose: 400k x 64; 64 noisy poses), 24 h slots resumed from the latest checkpoint (resume_loop_any.sh):
+#   qsub -N ycf4-lat -l walltime=24:00:00 -v STAGE=den,MODE=field_full_lat,STEPS=400000,BS=64,NS=64,GA=4,CK=5000 ycbv_field_std.pbs
+#PBS -P hpc.dtu.kavinder
+#PBS -q standard
+#PBS -l select=1:ncpus=12:ngpus=1:mem=96gb:centos=icelake
+#PBS -l walltime=120:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+W=${W:-$P/logs}
+FIELD=${FIELD:-yc_field_v1}
+C=$P/code_ycbv; cd $C
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+T=${TMPDIR:-/tmp}/ycf_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+df -h $T | tail -1
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/ycbv_tokens
+if ! cp -rL $P/data/ycbv_tokens $T/data/; then  # local disk too small: hold it in RAM
+  rm -rf $T/data/ycbv_tokens; mkdir -p /dev/shm/ycf_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/ycf_${PBS_JOBID%%.*}" EXIT
+  cp -rL $P/data/ycbv_tokens /dev/shm/ycf_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/ycf_${PBS_JOBID%%.*}/ycbv_tokens $T/data/
+fi
+export DATADIR=$T/data
+export PATH=$P/env/liepose/bin:$PATH  # bop_toolkit error scripts run as `python` subprocesses
+export PYTHONPATH=$C/src:$C/lib/bop_toolkit
+export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$T/xdg_cache CACHE_ROOT_PATH=$T/bop_cache
+cp -r $P/data/bop_cache $T/bop_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy BOP_DS=ycbv
+mkdir -p $W/probe $W/experiments/ycbv-field $W/logs
+if [ "$STAGE" = field ]; then
+  $P/env/liepose/bin/python -u -m liepose.exp.jepa_probe.tless_field --out $W/probe/$FIELD ${FIELD_ARGS} \
+    >> $W/logs/ycbv_field_${FIELD}.log 2>&1
+else
+  S=${STEPS:-100000}
+  $P/env/liepose/bin/python -u -m liepose.exp.cmp.tless_field_dit --root_path $W/experiments/ycbv-field "den_mode=[$MODE]" \
+    "field_dir=[$W/probe/$FIELD]" "train_steps=[$S]" "seed=[${SEED:-42}]" "num_workers=[${NW:-8}]" \
+    "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" "ckpt_steps=[${CK:-25000}]" \
+    >> $W/logs/ycbv_field_dit_${MODE}_${S}_s${SEED:-42}.log 2>&1
+fi
+echo "TLESS_FIELD_DONE $STAGE $?"
