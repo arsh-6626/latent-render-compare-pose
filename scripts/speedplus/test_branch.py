@@ -145,10 +145,11 @@ def main():
   p.add_argument("--smc_lambda", type=float, default=0.0, help="> 0: SMC over each crop's chains instead of best-of-K")
   p.add_argument("--crops_per_batch", type=int, default=8)
   p.add_argument("--limit", type=int, default=0, help="first n crops (val sweeps; consensus_score.py scores what is saved)")
+  p.add_argument("--no_ema", action="store_true", help="sample with the live weights (ema_check.py's choice)")
   a = p.parse_args()
   sys.argv = [sys.argv[0], "--root_path", os.path.join(a.out, "_tb"), f"den_mode=[{a.den_mode}]", f"field_dir=[{a.field_dir}]",
               "train_steps=[100000]", "batch_size=[64]", "n_slices=[64]", "skip_train=[True]", f"restore_path=[{a.restore}]",
-              f"restore_step=[{a.step}]"]
+              f"restore_step=[{a.step}]"] + (["ema_enabled=[False]"] if a.no_ema else [])
   ga = get_args(exp_name="branch", desc="branch-and-select")
   opt = next(iter(load_config_from_args(ga, sp_field_dit.build_explorations()).expand()))
   opt.pop("sample_options", None)

@@ -1,0 +1,40 @@
+#!/bin/bash
+# T-LESS field denoiser checkpoint -> EMA vs live by training loss (scripts/speedplus/ema_check.py, no test data). If the live
+# weights win, the BOP19 test is rerun with them under $W/experiments/tless-field-live (the EMA test result stays where it is).
+# Standard queue, either account (reads dtu001's data and code, writes under W).
+#   qsub -N tfe-lat -v MODE=field_full_lat,EXP=<exp dir>,STEP=100000,W=<account dir> tless_field_eval_std.pbs
+#PBS -P hpc.dtu.kavinder
+#PBS -q standard
+#PBS -l select=1:ncpus=12:ngpus=1:mem=96gb:centos=icelake
+#PBS -l walltime=24:00:00
+#PBS -j oe
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+W=${W:-$P/logs}
+FIELD=${FIELD:-tl_field_v1}
+C=${CODE:-$P/code_larp}; cd $C
+hostname; nvidia-smi --query-gpu=name,memory.total --format=csv
+T=${TMPDIR:-/tmp}/tfe_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/tless_tokens
+if ! cp -rL $P/data/tless_tokens $T/data/; then  # local disk too small: hold it in RAM
+  rm -rf $T/data/tless_tokens; mkdir -p /dev/shm/tfe_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/tfe_${PBS_JOBID%%.*}" EXIT
+  cp -rL $P/data/tless_tokens /dev/shm/tfe_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/tfe_${PBS_JOBID%%.*}/tless_tokens $T/data/
+fi
+export DATADIR=$T/data
+export PATH=$P/env/liepose/bin:$PATH
+export PYTHONPATH=$C/src:$C/lib/bop_toolkit
+export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$T/xdg_cache CACHE_ROOT_PATH=$T/bop_cache
+cp -r $P/data/bop_cache $T/bop_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy
+PY=$P/env/liepose/bin/python; O=$W/eval/tless-field/$(basename $EXP)_$STEP; mkdir -p $O
+[ -f $O/ema_check.json ] || $PY -u scripts/speedplus/ema_check.py --module tless_field_dit --den_mode $MODE --field_dir $P/logs/probe/$FIELD \
+  --restore $EXP/ckpt --step $STEP --out $O/ema_check.json || exit 1
+USE=$($PY -c "import json; print(json.load(open('$O/ema_check.json'))['use'])"); echo "weights: $USE"
+if [ $USE = live ]; then
+  S=$(basename $EXP | sed 's/.*train_steps=\([0-9]*\).*/\1/')
+  $PY -u -m liepose.exp.cmp.tless_field_dit --root_path $W/experiments/tless-field-live "den_mode=[$MODE]" \
+    "field_dir=[$P/logs/probe/$FIELD]" "train_steps=[$S]" "seed=[42]" "skip_train=[True]" "ema_enabled=[False]" \
+    "restore_path=[$EXP/ckpt]" "restore_step=[$STEP]" "num_workers=[8]"
+fi
+echo "TLESS_FIELD_EVAL_DONE $?"

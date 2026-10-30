@@ -1,0 +1,31 @@
+#!/bin/bash
+# SPEED+ field denoiser checkpoint -> EMA vs live by training loss (ema_check.py, no test data), then 16 chains per crop with
+# the chosen weights (test_branch.py K=1 = the plain sampler) on lightbox / sunlamp, then the official ESA of sample 0 and of
+# the 16-sample consensus (consensus_score.py). Standard queue, dtu004 account (reads dtu001's data and code).
+#   qsub -N fde-lat -v MODE=field_full_lat,EXP=<exp dir>,STEP=400000 sp_field_eval_std.pbs
+#PBS -P hpc.dtu.kavinder
+#PBS -q standard
+#PBS -l select=1:ncpus=12:ngpus=1:mem=96gb:centos=icelake
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu004.visitor/larp/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+C=${CODE:-$P/code_larp}; cd $C
+hostname; nvidia-smi --query-gpu=name,memory.total --format=csv
+T=${TMPDIR:-/tmp}/fde_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
+for f in $P/data/*; do ln -s $f $T/data/; done
+rm $T/data/speedplus_tokens; cp -rL $P/data/speedplus_tokens $T/data/ || exit 1
+export DATADIR=$T/data SPEEDPLUS_ROOT=$P/data/speedplusv2
+export PYTHONPATH=$C/src:$C/lib/bop_toolkit XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
+PY=$P/env/liepose/bin/python; F=$P/data/probe/sp_field_v1; O=$EXP/eval_${STEP}_n16
+mkdir -p $O
+[ -f $O/ema_check.json ] || $PY -u scripts/speedplus/ema_check.py --module sp_field_dit --den_mode $MODE --field_dir $F \
+  --restore $EXP/ckpt --step $STEP --out $O/ema_check.json || exit 1
+USE=$($PY -c "import json; print(json.load(open('$O/ema_check.json'))['use'])"); echo "weights: $USE"
+[ -f $O/sunlamp_samples.npz ] || $PY -u scripts/speedplus/test_branch.py --den_mode $MODE --field_dir $F --restore $EXP/ckpt \
+  --step $STEP --out $O --K 1 --n_samples 16 $([ $USE = live ] && echo --no_ema) || exit 1
+for s in lightbox sunlamp; do
+  $PY -u scripts/speedplus/consensus_score.py --samples $O/${s}_samples.npz --crops $DATADIR/speedplus_crops/$s --out $O/consensus_$s.json
+done
+echo "SP_FIELD_EVAL_DONE $?"
