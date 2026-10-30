@@ -24,8 +24,9 @@ DATASETS = {
     n_obj=21,
     train_datasets=["ycbv-train_pbr"],  # PBR only for now (train_real is not on the cluster yet)
     test_datasets=["ycbv-test"],
-    tran_scale=None,  # scripts/tless/tran_stats.py --datasets ycbv-train_pbr
-    tran_offset=None,
+    # scripts/tless/tran_stats.py --datasets ycbv-train_pbr --n 5000 --augment 0: robust scale (1.4826 MAD), median / MAD
+    tran_scale=[0.043576, 0.062371, 0.370406],
+    tran_offset=[0.060127, 0.045836, 2.649923],
     models_info="bop_datasets/ycbv/models_eval/models_info.json",
     tokens="ycbv_tokens",
   ),
