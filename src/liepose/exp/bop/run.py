@@ -6,6 +6,8 @@ from tqdm import tqdm
 
 from liepose.dist import NormalR3SO3, NormalSE3
 from liepose.exp.bop import dataset_registry  # noqa: F401
+from liepose.exp.bop.ds_config import DS
+from liepose.exp.bop.ds_config import NAME as DS_NAME
 from liepose.exp.bop.testbed import Testbed
 from liepose.metrics import r3so3 as r3so3_metrics
 from liepose.metrics import se3 as se3_metrics
@@ -39,11 +41,13 @@ def build_explorations() -> Explorations:
   explorations = Explorations()
 
   # datasets
-  explorations.train_datasets = [["tless-train_pbr", "tless-train_primesense"]]
-  explorations.test_datasets = [["tless-test_primesense"]]
+  # datasets and translation parametrisation: ds_config.DS (BOP_DS, default tless = the original constants)
+  assert DS["tran_scale"] is not None and DS["tran_offset"] is not None, f"translation constants of BOP_DS={DS_NAME} not set"
+  explorations.train_datasets = [list(DS["train_datasets"])]
+  explorations.test_datasets = [list(DS["test_datasets"])]
   explorations.include_ids = [None]
-  explorations.tran_scale = [[0.044119, 0.054692, 0.238700]]
-  explorations.tran_offset = [[0.11813018, 0.08893179, 2.5791266]]
+  explorations.tran_scale = [list(DS["tran_scale"])]
+  explorations.tran_offset = [list(DS["tran_offset"])]
   explorations.use_reproj = [False]
   # model
   explorations.lie_type = ["se3"]

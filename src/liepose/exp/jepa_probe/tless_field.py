@@ -38,6 +38,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
+from liepose.exp.bop.ds_config import DS
 from liepose.exp.jepa_probe import probe_ret_tless as prt
 from liepose.exp.jepa_probe.field import fourier
 from liepose.exp.jepa_probe.probe_frozen import FG_FLOOR, weighted_energy
@@ -46,10 +47,10 @@ from liepose.exp.jepa_probe.sp_geometry import quat_to_mat
 from liepose.exp.jepa_probe.wm_eval import app_stats
 from liepose.utils.jnpfn import get_allo_rotation
 
-N_OBJ = 30
+N_OBJ = DS["n_obj"]
 # liepose.exp.bop.run's T-LESS translation parametrisation
-TRAN_SCALE = (0.044119, 0.054692, 0.238700)
-TRAN_OFFSET = (0.11813018, 0.08893179, 2.5791266)
+TRAN_SCALE = tuple(DS["tran_scale"] or (1.0, 1.0, 1.0))  # bop.ds_config (BOP_DS); bop.run asserts they are set
+TRAN_OFFSET = tuple(DS["tran_offset"] or (0.0, 0.0, 0.0))
 
 
 def tless_crop_meta(crops_dir):
@@ -235,9 +236,9 @@ def main():
   p.add_argument("--ref_noise_t", type=float, default=0.1)
   a = p.parse_args()
   D = os.environ["DATADIR"]
-  cache = a.cache or os.path.join(D, "tless_tokens")
+  cache = a.cache or os.path.join(D, DS["tokens"])
   os.makedirs(a.out, exist_ok=True)
-  info = os.path.join(D, "bop_datasets/tless/models_eval/models_info.json")
+  info = os.path.join(D, DS["models_info"])
   a.radii = object_radii(info, a.box).tolist()
   json.dump(vars(a), open(os.path.join(a.out, "args.json"), "w"), indent=2)
   train = TokenSplit(cache, "train")

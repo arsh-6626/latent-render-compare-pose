@@ -51,6 +51,7 @@ from scipy.spatial.transform import Rotation
 from tqdm import tqdm
 
 from liepose.exp.bop import run as bop_run
+from liepose.exp.bop.ds_config import DS
 from liepose.exp.jepa_probe import probe_ret_tless as prt
 from liepose.exp.jepa_probe.probe_frozen import FG_FLOOR
 from liepose.exp.jepa_probe.probe_tless import TokenSplit, load_symmetries
@@ -112,9 +113,9 @@ class Testbed(bop_run.TestbedSE3):
     self.t_scale = np.asarray(wa.T_SCALE, np.float32)
     prt.T_SCALE = self.t_scale.astype(np.float64)  # the bank's key normalisation (module global)
     D = os.environ["DATADIR"]
-    self.cache = os.path.join(D, "tless_tokens")
+    self.cache = os.path.join(D, DS["tokens"])
     self.train_split = TokenSplit(self.cache, "train")
-    syms = load_symmetries(os.path.join(D, "bop_datasets/tless/models_eval/models_info.json"))
+    syms = load_symmetries(os.path.join(D, DS["models_info"]))
     self.bank = prt.TlessBank(self.train_split, np.arange(len(self.train_split.obj)), syms, wa.lam, wa.max_sym)
     model = RetDenoiser(mode=self.a.den_mode.replace("_ft", ""), gate_t0=self.a.timesteps // 2, dim=self.a.dit_dim,
                         depth=self.a.dit_depth, wm_dim=wa.dim, wm_depth=wa.depth, wm_geo=False, crop_fn=no_crop, ft=self.ft)

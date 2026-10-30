@@ -1,0 +1,36 @@
+#!/bin/bash
+# Upstream LiePose SE(3) on YCB-V (BOP19 test, GT visible boxes/masks as on T-LESS), standard queue, dtu001, resumable in
+# 24 h slots (resume_loop_any.sh). Code from $P/code_ycbv (a separate copy: the T-LESS runs read $P/code_larp).
+# TRAIN: the training sets (default PBR only: ycbv-train_pbr; with real: "ycbv-train_pbr,ycbv-train_real").
+# TS / TO: tran_scale / tran_offset from scripts/tless/tran_stats.py on the same training sets (comma-separated).
+#   qsub -N lp-ycbv -v TS=a,b,c,TO=d,e,f,ROOT=ycbv-se3-pbr ycbv_liepose_std.pbs
+#PBS -P hpc.dtu.kavinder
+#PBS -q standard
+#PBS -l select=1:ncpus=12:ngpus=1:mem=96gb:centos=icelake
+#PBS -l walltime=24:00:00
+#PBS -j oe
+#PBS -o /scratch/hpc/visitor/dtu001.visitor/liepose/logs/
+
+P=/scratch/hpc/visitor/dtu001.visitor/liepose
+C=${CODE:-$P/code_ycbv}
+cd $C
+hostname
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+[ -n "$TS" ] && [ -n "$TO" ] || { echo "TS / TO not set"; exit 1; }
+
+export DATADIR=$P/data
+export PATH=$P/env/liepose/bin:$PATH  # bop_toolkit error scripts run as `python` subprocesses
+export PYTHONPATH=$C/src:$C/lib/bop_toolkit
+export TORCH_HOME=$P/torch_home
+export XDG_CACHE_HOME=$P/xdg_cache
+export CACHE_ROOT_PATH=$P/data/bop_cache
+export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy
+mkdir -p $CACHE_ROOT_PATH
+
+TR=$(echo ${TRAIN:-ycbv-train_pbr} | sed 's/,/, /g')
+$P/env/liepose/bin/python -u -m liepose.exp.cmp.bop_run \
+  --root_path $P/logs/experiments/${ROOT:-ycbv-se3-pbr} "lie_type=[se3]" "ckpt_steps=[${CK:-25000}]" "num_workers=[${NW:-10}]" \
+  "train_steps=[${STEPS:-400000}]" "train_datasets=[[$TR]]" "test_datasets=[[ycbv-test]]" \
+  "tran_scale=[[$TS]]" "tran_offset=[[$TO]]" > $P/logs/ycbv_se3_${ROOT:-ycbv-se3-pbr}_${PBS_JOBID}.log 2>&1
+
+echo YCBV_DONE

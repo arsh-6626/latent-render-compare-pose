@@ -26,6 +26,7 @@ from flax.core import FrozenDict, unfreeze
 from tqdm import tqdm
 
 from liepose.exp.bop import run as bop_run
+from liepose.exp.bop.ds_config import DS
 from liepose.exp.jepa_probe.probe_frozen import FG_FLOOR
 from liepose.exp.jepa_probe.probe_tless import TokenSplit
 from liepose.exp.jepa_probe.tless_field import crop_meta10, load_tless_field
@@ -51,7 +52,7 @@ class Testbed(tless_dit.Testbed):
 
   def create_model(self):
     D = os.environ["DATADIR"]
-    self.cache = self.a.tl_cache or os.path.join(D, "tless_tokens")
+    self.cache = self.a.tl_cache or os.path.join(D, DS["tokens"])
     self.train_split = TokenSplit(self.cache, "train")
     if not self.ft:
       self.train_meta = np.load(os.path.join(self.cache, "train_crop_meta.npy")).astype(np.float32)

@@ -7,3 +7,4 @@ from .base_loader import (
 )
 from .icbin_loader import ICBinDatasetLoader
 from .tless_loader import TLessDatasetLoader
+from .ycbv_loader import YCBVDatasetLoader

@@ -1,6 +1,7 @@
 """Raw scaled-translation statistics of a BOP training set through LiePose's own loader (tran_scale = 1, tran_offset = 0):
-raw = [dx / bbox_w, dy / bbox_h, z / focal_ratio]. Checks the hypothesis scale = std(raw), offset = mean(raw) / std(raw)
-against bop/run.py's T-LESS constants, so the same procedure can give another dataset's constants.
+raw = [dx / bbox_w, dy / bbox_h, z / focal_ratio]. Finding (2026-10-30): bop/run.py's T-LESS constants (from upstream LiePose) standardise the T-LESS *test* set
+(translation_scaled there has mean 0 / std 1 to 3 decimals), not the training crops. New datasets take their constants
+from training crops only (no augmentation, robust statistics against the heavy x / y tails).
 
   DATADIR=... PYTHONPATH=src:lib/bop_toolkit python scripts/tless/tran_stats.py --datasets tless-train_pbr tless-train_primesense --n 20000
 """
@@ -36,6 +37,12 @@ def main():
   print("n", len(x), "augment", a.augment)
   print("tran_scale  (std)       ", np.round(s, 6).tolist())
   print("tran_offset (mean / std)", np.round(m / s, 6).tolist())
+  med = np.median(x, 0)
+  mad = 1.4826 * np.median(np.abs(x - med), 0)  # robust std (training crops have heavy x / y tails)
+  print("robust scale  (1.4826 MAD)    ", np.round(mad, 6).tolist())
+  print("robust offset (median / MAD)  ", np.round(med / mad, 6).tolist())
+  print("percentiles 1/50/99 x", np.percentile(x[:, 0], [1, 50, 99]).round(4).tolist(), "y", np.percentile(x[:, 1], [1, 50, 99]).round(4).tolist(),
+        "z", np.percentile(x[:, 2], [1, 50, 99]).round(4).tolist())
 
 
 if __name__ == "__main__":
