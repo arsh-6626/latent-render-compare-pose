@@ -23,7 +23,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from flax.core import FrozenDict, unfreeze
-from jaxlie import SO3
+from jaxlie import R3SO3, SE3, SO3
 from tqdm import tqdm
 
 from liepose.exp.bop import run as bop_run
@@ -91,8 +91,18 @@ class Testbed(tless_dit.Testbed):
     keeps the step embedding on the diffusion's scale."""
     if self.a.process == "diffusion":
       return super().create_sample_train_fn()
-    assert self.a.process == "fm", self.a.process
+    assert self.a.process in FM, self.a.process
     Lie, lm, T, rep = self.Lie, self.lie_metrics, self.noise_schedule.timesteps, self.a.repr_type
+    if self.a.process == "fmr3":  # SO(3) x R^3: rotation geodesic, straight translation line (velocity [t1 - t0, omega])
+      def sample_train_fn(seed, rot, tran):
+        k1, k2 = jax.random.split(seed)
+        tau = jax.random.uniform(k2, ())
+        g0 = R3SO3.from_rotation_and_translation(SO3(rot), tran)
+        xi = (g0.inverse() @ R3SO3.sample_uniform(k1)).log()
+        gt = g0 @ R3SO3.exp(tau * xi)
+        return {"rt": lm.as_repr(_se3(gt), rep), "t": tau * T, "zt": xi, "r0": lm.as_repr(_se3(g0), rep)}
+
+      return sample_train_fn
 
     def sample_train_fn(seed, rot, tran):
       k1, k2 = jax.random.split(seed)
@@ -136,7 +146,8 @@ class Testbed(tless_dit.Testbed):
   def create_update_fn(self):
     lie_metrics, loss_name, model = self.lie_metrics, self.a.loss_name, self.model
     assert self.a.learn_noise
-    fm = self.a.process == "fm"
+    fm = self.a.process in FM
+    huber = self.a.process == "fmr3"
 
     def loss_fn(params, mb):
       """mb: (part of) a batch; per-image keys (fg, tok / image, keep) and per-slice keys, slices image-major"""
@@ -153,6 +164,10 @@ class Testbed(tless_dit.Testbed):
       z_obs = jnp.repeat(z_obs, s, 0)
       z_hat, opa, h = self._render(mb["obj"], mb["Rg"], mb["tg"], mb["kg"], z_obs)
       mu = model.apply({"params": params}, mb["rt"], t, mb["kg"], z_obs, w, z_hat, opa, h, keep, z_ext)
+      if huber:  # [translation | rotation] velocity: pseudo-Huber on translation (train tails reach |t| ~ 47), MSE on rotation
+        r = mu - mb["zt"]
+        d = self.a.fm_delta
+        return jnp.mean(jnp.sum(d ** 2 * (jnp.sqrt(1 + (r[:, :3] / d) ** 2) - 1), -1) + jnp.sum(r[:, 3:] ** 2, -1))
       if fm:  # velocity regression in se(3)
         return jnp.mean(jnp.sum((mu - mb["zt"]) ** 2, -1))
       return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(mb["zt"], mu))
@@ -188,12 +203,15 @@ class Testbed(tless_dit.Testbed):
     model, poses = self.model, self._poses_fn()
     params = {"params": self.state.params_ema if self.a.ema_enabled else self.state.params}
     T = self.noise_schedule.timesteps
-    fm = self.a.process == "fm"
+    fm = self.a.process in FM
     if fm:  # Euler steps of the ODE on the group, tau 1 -> 0: g <- g Exp(-(tau - tau') v)
       lm, rep = self.lie_metrics, self.a.repr_type
       taus = np.linspace(1.0, 0.0, n_steps + 1)
       seq = [(float(a) * T, float(a - b)) for a, b in zip(taus[:-1], taus[1:])]
-      move = jax.vmap(lambda r, v, d: lm.as_repr(lm.as_lie(r) @ self.Lie.exp(-d * v), rep), (0, 0, None))
+      if self.a.process == "fmr3":
+        move = jax.vmap(lambda r, v, d: lm.as_repr(_se3(_r3so3(lm.as_lie(r)) @ R3SO3.exp(-d * v)), rep), (0, 0, None))
+      else:
+        move = jax.vmap(lambda r, v, d: lm.as_repr(lm.as_lie(r) @ self.Lie.exp(-d * v), rep), (0, 0, None))
     else:
       p_fn = jax.vmap(self.create_p_sample_fn())
       cur = (np.linspace(T, 0, n_steps, endpoint=False) - 1).astype(np.int32).tolist()  # = Testbed.run_test
@@ -267,6 +285,17 @@ class Testbed(tless_dit.Testbed):
     return n
 
 
+FM = ("fm", "fmr3")
+
+
+def _se3(g):
+  return SE3.from_rotation_and_translation(g.rotation(), g.translation())
+
+
+def _r3so3(g):
+  return R3SO3.from_rotation_and_translation(g.rotation(), g.translation())
+
+
 def build_explorations():
   e = tless_dit.build_explorations()
   e.den_mode = ["field_full_lat"]
@@ -274,7 +303,8 @@ def build_explorations():
   e.drop_p = [0.5]
   e.tl_cache = [None]  # token cache with {split}_crop_meta.npy (default $DATADIR/tless_tokens)
   e.grad_accum = [1]  # micro-batches per step (same gradient, less memory; sp_field_dit)
-  e.process = ["diffusion"]  # diffusion (LiePose's) | fm (flow matching on SE(3), create_sample_train_fn)
+  e.process = ["diffusion"]  # diffusion (LiePose's) | fm (flow on SE(3)) | fmr3 (flow on SO(3) x R^3); create_sample_train_fn
+  e.fm_delta = [1.0]  # fmr3: pseudo-Huber scale of the translation velocity loss
   e.fm_steps = ["10/20/100"]  # fm: ODE steps of the test runs (one BOP19 test each)
   return e
 
