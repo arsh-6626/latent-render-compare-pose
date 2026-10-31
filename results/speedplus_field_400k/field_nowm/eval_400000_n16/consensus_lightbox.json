@@ -1,0 +1,27 @@
+{
+ "samples": "/scratch/hpc/visitor/dtu004.visitor/larp/experiments/speedplus-field/train_steps=400000+seed=42+den_mode=field_nowm+field=sp_field_v1/eval_400000_n16/lightbox_samples.npz",
+ "n": 6740,
+ "S": 16,
+ "sample0": {
+  "score": 0.8767117782090275,
+  "score_ori": 0.8168789492337524,
+  "score_pos": 0.05983282897527506,
+  "e_q_deg_mean": 46.80371616417544,
+  "e_q_deg_median": 10.363576596845022,
+  "e_t_m_mean": 0.33903246673763165,
+  "e_t_m_median": 0.2175462607998974,
+  "e_q_gt10": 0.5136498516320475,
+  "e_q_gt90": 0.23664688427299704
+ },
+ "consensus": {
+  "score": 0.7755648350777317,
+  "score_ori": 0.7201095936417823,
+  "score_pos": 0.05545524143594931,
+  "e_q_deg_mean": 41.25924050255486,
+  "e_q_deg_median": 9.547918888964785,
+  "e_t_m_mean": 0.3149788506530754,
+  "e_t_m_median": 0.20446817689160895,
+  "e_q_gt10": 0.4808605341246291,
+  "e_q_gt90": 0.2026706231454006
+ }
+}

@@ -113,10 +113,11 @@ SPEC2021, lava1302~\cite{park2023spec2021}$^\P$       & -- & 1 & -- & 6.7 & 0.16
 \multicolumn{9}{@{}l}{\emph{Trained by us, synthetic only, GT keypoint box, matched number of training images (400k $\times$ 64)}} \\
 LiePose (our training)                       & GT  & 1 & 0.183 & 11.6 & 0.234 & 0.175 & 14.9 & 0.289 \\ % EMA (tab:supp-ema); logs/speedplus_test/liepose_se3_400k
 \quad + consensus                            & GT  & 16 & 0.170 & 7.8 & 0.165 & 0.163 & 11.2 & 0.223 \\ % results/speedplus_test/consensus/liepose_400k_{lightbox,sunlamp}.json
-Control (no world model)                     & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % dtu004 speedplus-field field_nowm 400k test_400000/esa.json (test-script weights): 0.338/45.5/0.854 | 0.310/42.4/0.793 -- worse than 100k; held until the EMA/live check of tab:supp-ema
-\method                                      & GT  & 1 & \pend & \pend & \pend & \pend & \pend & \pend \\ % dtu004 speedplus-field field_full_lat 400k (fds-lat, running)
+Control (no world model)                     & GT  & 1 & 0.338 & 45.5 & 0.854 & 0.310 & 42.4 & 0.793 \\ % EMA (tab:supp-ema); dtu004 speedplus-field field_nowm 400k test_400000/esa.json
+\quad + consensus                            & GT  & 16 & 0.315 & 41.3 & 0.776 & 0.284 & 36.7 & 0.688 \\ % EMA; field_nowm 400k eval_400000_n16/consensus_{lightbox,sunlamp}.json (test_branch.py K=1, 16 chains)
+\method                                      & GT  & 1 & 0.268 & 35.8 & 0.672 & 0.241 & 35.8 & 0.664 \\ % EMA (tab:supp-ema); dtu004 speedplus-field field_full_lat 400k test_400000/esa.json
+\quad + consensus                            & GT  & 16 & 0.245 & 29.9 & 0.565 & 0.222 & 30.5 & 0.568 \\ % EMA; field_full_lat 400k eval_400000_n16/consensus_{lightbox,sunlamp}.json
 \method + selection                          & GT  & $N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
-\quad + consensus                            & GT  & 16 & \pend & \pend & \pend & \pend & \pend & \pend \\
 \midrule
 \multicolumn{9}{@{}l}{\emph{Trained by us, 100k $\times$ 32 (an eighth of the training images, 16 noisy poses)}} \\
 Control (no world model)                     & GT  & 1 & 0.358 & 43.8 & 0.827 & 0.308 & 39.6 & 0.743 \\ % results/speedplus_field_dit/frozen_100k_full_nowm.txt (field_nowm)
@@ -150,7 +151,7 @@ retrieval world model of \cref{sec:supp-ret} raises AR from 41.2 to 54.7 over it
 \paragraph{SPEED+.}
 \Cref{tab:speedplus} reports the full lightbox and sunlamp sets. At 100k $\times$ 32, \method lowers the score from 0.827 to
 0.705 on lightbox and from 0.743 to 0.643 on sunlamp relative to the control, with lower rotation and translation errors on both.
-Both are far from LiePose at the full budget (0.234 / 0.289). With a trained encoder (\cref{sec:den}) and 100k steps of batch 64,
+At the matched budget (400k $\times$ 64, frozen DINOv2) the gap to the control is similar: 0.854 to 0.672 on lightbox and 0.793 to 0.664 on sunlamp, and 0.776 to 0.565 and 0.688 to 0.568 with 16-sample consensus. The field models gain little from the four times larger budget, and both are far from LiePose at the full budget (0.234 / 0.289; 0.165 / 0.223 with consensus). With a trained encoder (\cref{sec:den}) and 100k steps of batch 64,
 \method reaches 0.412 / 0.480. This run differs from the rows above in both the encoder and the batch, and its control with a trained
 encoder has not been evaluated, so the two effects are not separated. \TODO{describe the matched-budget rows, the trained encoder and selection,
 and the gap to the oracle as an upper bound on what selection could reach. State explicitly that the SPEC2021 entries used the

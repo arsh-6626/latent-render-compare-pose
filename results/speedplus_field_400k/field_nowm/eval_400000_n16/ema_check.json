@@ -1,0 +1,15 @@
+{
+ "restore": "/scratch/hpc/visitor/dtu004.visitor/larp/experiments/speedplus-field/train_steps=400000+seed=42+den_mode=field_nowm+field=sp_field_v1/ckpt",
+ "step": 400000,
+ "den_mode": "field_nowm",
+ "n_batches": 50,
+ "batch_size": 32,
+ "n_slices": 16,
+ "seed": 777,
+ "loss_ema": 0.26928044378757476,
+ "loss_live": 0.3072062012553215,
+ "diff_mean": -0.037925757467746735,
+ "diff_se": 0.0018377733104092294,
+ "rel_param_dist": 0.0031898936966876976,
+ "use": "ema"
+}
