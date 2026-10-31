@@ -23,6 +23,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from flax.core import FrozenDict, unfreeze
+from jaxlie import SO3
 from tqdm import tqdm
 
 from liepose.exp.bop import run as bop_run
@@ -83,6 +84,26 @@ class Testbed(tless_dit.Testbed):
 
   # --- train ---
 
+  def create_sample_train_fn(self):
+    """process=fm: flow matching on SE(3) instead of LiePose's diffusion. The pose moves on the geodesic from the data
+    pose g0 (tau=0) to a prior pose g1 (tau=1, the sampler's prior: uniform rotation, translation in [-1, 1]^3),
+    g_tau = g0 Exp(tau xi), xi = Log(g0^-1 g1); the network predicts the constant body-frame velocity xi. t = tau * T
+    keeps the step embedding on the diffusion's scale."""
+    if self.a.process == "diffusion":
+      return super().create_sample_train_fn()
+    assert self.a.process == "fm", self.a.process
+    Lie, lm, T, rep = self.Lie, self.lie_metrics, self.noise_schedule.timesteps, self.a.repr_type
+
+    def sample_train_fn(seed, rot, tran):
+      k1, k2 = jax.random.split(seed)
+      tau = jax.random.uniform(k2, ())
+      g0 = Lie.from_rotation_and_translation(SO3(rot), tran)
+      xi = (g0.inverse() @ Lie.sample_uniform(k1)).log()
+      gt = g0 @ Lie.exp(tau * xi)
+      return {"rt": lm.as_repr(gt, rep), "t": tau * T, "zt": xi, "r0": lm.as_repr(g0, rep)}
+
+    return sample_train_fn
+
   def create_get_flat_batch_train_fn(self):
     base = bop_run.TestbedSE3.create_get_flat_batch_train_fn(self)  # LiePose noising of (rotation_allo, translation_scaled)
     poses = self._poses_fn()
@@ -115,6 +136,7 @@ class Testbed(tless_dit.Testbed):
   def create_update_fn(self):
     lie_metrics, loss_name, model = self.lie_metrics, self.a.loss_name, self.model
     assert self.a.learn_noise
+    fm = self.a.process == "fm"
 
     def loss_fn(params, mb):
       """mb: (part of) a batch; per-image keys (fg, tok / image, keep) and per-slice keys, slices image-major"""
@@ -131,6 +153,8 @@ class Testbed(tless_dit.Testbed):
       z_obs = jnp.repeat(z_obs, s, 0)
       z_hat, opa, h = self._render(mb["obj"], mb["Rg"], mb["tg"], mb["kg"], z_obs)
       mu = model.apply({"params": params}, mb["rt"], t, mb["kg"], z_obs, w, z_hat, opa, h, keep, z_ext)
+      if fm:  # velocity regression in se(3)
+        return jnp.mean(jnp.sum((mu - mb["zt"]) ** 2, -1))
       return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(mb["zt"], mu))
 
     def update_fn(state, batch):
@@ -163,18 +187,28 @@ class Testbed(tless_dit.Testbed):
   def create_sampler(self, n_steps=100):
     model, poses = self.model, self._poses_fn()
     params = {"params": self.state.params_ema if self.a.ema_enabled else self.state.params}
-    p_fn = jax.vmap(self.create_p_sample_fn())
     T = self.noise_schedule.timesteps
-    cur = (np.linspace(T, 0, n_steps, endpoint=False) - 1).astype(np.int32).tolist()  # = Testbed.run_test
-    seq = list(zip(cur, cur[1:] + [0]))
+    fm = self.a.process == "fm"
+    if fm:  # Euler steps of the ODE on the group, tau 1 -> 0: g <- g Exp(-(tau - tau') v)
+      lm, rep = self.lie_metrics, self.a.repr_type
+      taus = np.linspace(1.0, 0.0, n_steps + 1)
+      seq = [(float(a) * T, float(a - b)) for a, b in zip(taus[:-1], taus[1:])]
+      move = jax.vmap(lambda r, v, d: lm.as_repr(lm.as_lie(r) @ self.Lie.exp(-d * v), rep), (0, 0, None))
+    else:
+      p_fn = jax.vmap(self.create_p_sample_fn())
+      cur = (np.linspace(T, 0, n_steps, endpoint=False) - 1).astype(np.int32).tolist()  # = Testbed.run_test
+      seq = list(zip(cur, cur[1:] + [0]))
 
     @jax.jit
     def step(key, rt, t, tp, obj, z_obs, w, kg, z_ext):
+      """diffusion: t, tp = step and previous step; fm: t = tau * T, tp = the step size in tau"""
       B = rt.shape[0]
       key, k = jax.random.split(key)
       Rg, tg = poses(rt)
       z_hat, opa, h = self._render(obj, Rg, tg, kg, z_obs)
       mu = model.apply(params, rt, jnp.full((B, 1), t, jnp.float32), kg, z_obs, w, z_hat, opa, h, None, z_ext)
+      if fm:
+        return key, move(rt, mu, tp)
       _, rt = p_fn(jax.random.split(k, B), mu, rt, jnp.full((B,), t), jnp.full((B,), tp))
       return key, rt
 
@@ -187,7 +221,8 @@ class Testbed(tless_dit.Testbed):
         tok, z_ext = encode(image)
       obj = jnp.asarray(obj)
       for t, tp in seq:
-        key, rt = step(key, rt, jnp.int32(t), jnp.int32(tp), obj, tok, fg, meta, z_ext)
+        t, tp = (jnp.float32(t), jnp.float32(tp)) if fm else (jnp.int32(t), jnp.int32(tp))
+        key, rt = step(key, rt, t, tp, obj, tok, fg, meta, z_ext)
       return rt
 
     return sample
@@ -239,6 +274,8 @@ def build_explorations():
   e.drop_p = [0.5]
   e.tl_cache = [None]  # token cache with {split}_crop_meta.npy (default $DATADIR/tless_tokens)
   e.grad_accum = [1]  # micro-batches per step (same gradient, less memory; sp_field_dit)
+  e.process = ["diffusion"]  # diffusion (LiePose's) | fm (flow matching on SE(3), create_sample_train_fn)
+  e.fm_steps = ["10/20/100"]  # fm: ODE steps of the test runs (one BOP19 test each)
   return e
 
 
@@ -247,17 +284,21 @@ def main():
   for opt in load_config_from_args(a, build_explorations()).expand():
     opt.pop("sample_options", None)
     field = os.path.basename(os.path.normpath(opt.field_dir))
-    exp_path = os.path.join(a.root_path, opt.to_string(includes=["den_mode", "train_steps", "seed"]) + f"+field={field}")
+    exp_path = os.path.join(a.root_path, opt.to_string(includes=["den_mode", "train_steps", "seed"]) + f"+field={field}"
+                            + ("" if opt.process == "diffusion" else f"+process={opt.process}"))
     tb = Testbed(opt, exp_path, setup=True)
     if not opt.skip_train:
       save_config(opt, os.path.join(exp_path, "configs.yaml"))
       tb.run_train()
     step = int(tb.state.step)
-    out = os.path.join(exp_path, f"test_{step}")
-    n = tb.run_test(Options(SAMPLE), out, limit=opt.test_limit)
-    tb.run_eval(Options(SAMPLE), out)
-    json.dump({"exp": exp_path, "step": step, "n_instances": n, "sample": SAMPLE,
-               "renderer": os.environ.get("BOP_RENDERER", "cpp")}, open(os.path.join(out, "run.json"), "w"), indent=2)
+    runs = [(f"test_{step}", SAMPLE)] if opt.process == "diffusion" else \
+           [(f"test_{step}_n{n}", dict(SAMPLE, steps=int(n))) for n in str(opt.fm_steps).split("/")]
+    for name, sample in runs:
+      out = os.path.join(exp_path, name)
+      n = tb.run_test(Options(sample), out, limit=opt.test_limit)
+      tb.run_eval(Options(sample), out)
+      json.dump({"exp": exp_path, "step": step, "n_instances": n, "sample": sample, "process": opt.process,
+                 "renderer": os.environ.get("BOP_RENDERER", "cpp")}, open(os.path.join(out, "run.json"), "w"), indent=2)
 
 
 if __name__ == "__main__":
