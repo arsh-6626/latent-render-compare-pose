@@ -1,7 +1,7 @@
 #!/bin/bash
 # T-LESS field denoiser checkpoint -> EMA vs live by training loss (scripts/speedplus/ema_check.py, no test data). If the live
 # weights win, the BOP19 test is rerun with them under $W/experiments/tless-field-live (the EMA test result stays where it is).
-# Standard queue, either account (reads dtu001's data and code, writes under W).
+# Standard queue, dtu001 account (the field and checkpoints are under dtu001's logs, which dtu004 cannot read).
 #   qsub -N tfe-lat -v MODE=field_full_lat,EXP=<exp dir>,STEP=100000,W=<account dir> tless_field_eval_std.pbs
 #PBS -P hpc.dtu.kavinder
 #PBS -q standard
