@@ -7,6 +7,8 @@
 #   qsub -N ycf-lat -W depend=afterok:$j -v STAGE=den,MODE=field_full_lat ycbv_field_std.pbs
 # matched budget (LiePose: 400k x 64; 64 noisy poses), 24 h slots resumed from the latest checkpoint (resume_loop_any.sh):
 #   qsub -N ycf4-lat -l walltime=24:00:00 -v STAGE=den,MODE=field_full_lat,STEPS=400000,BS=64,NS=64,GA=4,CK=5000 ycbv_field_std.pbs
+# BOP detection protocol (cache data/ycbv_tokens_det, staged as ycbv_tokens_pr; BOP_DET / BOP_DET_TARGETS / BOP_TRAIN_BOX passed in -v):
+#   qsub -N ydet-lat -v "STAGE=den,MODE=field_full_lat,TOK=ycbv_tokens_det,FIELD=yc_field_det,TAG=det,CODE=$P/code_ycdet,DEN_ARGS=fg_uniform=[True],..." ycbv_field_std.pbs
 #PBS -P hpc.dtu.kavinder
 #PBS -q standard
 #PBS -l select=1:ncpus=12:ngpus=1:mem=96gb:centos=icelake
@@ -17,17 +19,17 @@
 P=/scratch/hpc/visitor/dtu001.visitor/liepose
 W=${W:-$P/logs}
 FIELD=${FIELD:-yc_field_v2}
-TOK=${TOK:-ycbv_tokens_pr}  # = bop.ds_config["ycbv"]["tokens"] (PBR + real; v1 / ycbv_tokens: PBR only)
-C=$P/code_ycbv; cd $C
+TOK=${TOK:-ycbv_tokens_pr}  # staged as data/ycbv_tokens_pr = bop.ds_config["ycbv"]["tokens"] (e.g. TOK=ycbv_tokens_det)
+C=${CODE:-$P/code_ycbv}; cd $C
 hostname
 nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
 T=${TMPDIR:-/tmp}/ycf_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
 df -h $T | tail -1
 for f in $P/data/*; do ln -s $f $T/data/; done
-rm $T/data/$TOK
-if ! cp -rL $P/data/$TOK $T/data/; then  # local disk too small: hold it in RAM
-  rm -rf $T/data/$TOK; mkdir -p /dev/shm/ycf_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/ycf_${PBS_JOBID%%.*}" EXIT
-  cp -rL $P/data/$TOK /dev/shm/ycf_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/ycf_${PBS_JOBID%%.*}/$TOK $T/data/
+rm -f $T/data/ycbv_tokens_pr $T/data/$TOK
+if ! cp -rL $P/data/$TOK $T/data/ycbv_tokens_pr; then  # local disk too small: hold it in RAM
+  rm -rf $T/data/ycbv_tokens_pr; mkdir -p /dev/shm/ycf_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/ycf_${PBS_JOBID%%.*}" EXIT
+  cp -rL $P/data/$TOK /dev/shm/ycf_${PBS_JOBID%%.*}/ycbv_tokens_pr || exit 1; ln -s /dev/shm/ycf_${PBS_JOBID%%.*}/ycbv_tokens_pr $T/data/
 fi
 export DATADIR=$T/data
 export PATH=$P/env/liepose/bin:$PATH  # bop_toolkit error scripts run as `python` subprocesses
@@ -41,9 +43,10 @@ if [ "$STAGE" = field ]; then
     >> $W/logs/ycbv_field_${FIELD}.log 2>&1
 else
   S=${STEPS:-100000}
+  PL=${TAG:+_$TAG}  # DEN_ARGS: extra options (e.g. fg_uniform=[True]), TAG: log-name suffix
   $P/env/liepose/bin/python -u -m liepose.exp.cmp.tless_field_dit --root_path $W/experiments/ycbv-field "den_mode=[$MODE]" \
     "field_dir=[$W/probe/$FIELD]" "train_steps=[$S]" "seed=[${SEED:-42}]" "num_workers=[${NW:-8}]" \
-    "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" "ckpt_steps=[${CK:-25000}]" \
-    >> $W/logs/ycbv_field_dit_${MODE}_${S}_s${SEED:-42}.log 2>&1
+    "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" "ckpt_steps=[${CK:-25000}]" ${DEN_ARGS} \
+    >> $W/logs/ycbv_field_dit_${MODE}_${S}_s${SEED:-42}${PL}.log 2>&1
 fi
 echo "TLESS_FIELD_DONE $STAGE $?"
