@@ -52,8 +52,10 @@ class YCBVDatasetLoader(BOPDatasetLoader):
     short_names: List[str] = SHORT_NAMES,
     num_scenes: int = None,
     filter_invalid: bool = True,
+    scenes: List[str] = None,
     **kwargs,
   ):
+    self.scenes = scenes  # only these scene dirs (scripts/tless/build_bop_cache.py builds the cache scene by scene)
     super().__init__(
       name=name,
       path=path,
@@ -129,6 +131,8 @@ class YCBVDatasetLoader(BOPDatasetLoader):
     start_time = time.time()
 
     scenes = sorted(os.listdir(self.path))
+    if self.scenes is not None:
+      scenes = [s for s in scenes if s in self.scenes]
     if self.num_scenes is None:
       self.num_scenes = len(scenes)
     scenes = scenes[: self.num_scenes]

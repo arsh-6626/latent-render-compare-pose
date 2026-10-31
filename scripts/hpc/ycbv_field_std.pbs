@@ -1,7 +1,7 @@
 #!/bin/bash
 # YCB-V (BOP_DS=ycbv, code_ycbv) copy of tless_field_std.pbs: feature-field world model (liepose.exp.jepa_probe.tless_field), then optionally the diffusion with it in the
 # loop (liepose.exp.cmp.tless_field_dit); standard queue, either account (reads dtu001's data, writes under W).
-#   STAGE=field  : field -> $W/probe/${FIELD:-yc_field_v1}
+#   STAGE=field  : field -> $W/probe/${FIELD:-yc_field_v2}
 #   STAGE=den    : tless_field_dit, MODE (field_full_lat / field_nowm / ... / *_ft), STEPS (100000), SEED (42)
 #   j=$(qsub -N ycf-v1 -v STAGE=field ycbv_field_std.pbs)
 #   qsub -N ycf-lat -W depend=afterok:$j -v STAGE=den,MODE=field_full_lat ycbv_field_std.pbs
@@ -16,17 +16,18 @@
 
 P=/scratch/hpc/visitor/dtu001.visitor/liepose
 W=${W:-$P/logs}
-FIELD=${FIELD:-yc_field_v1}
+FIELD=${FIELD:-yc_field_v2}
+TOK=${TOK:-ycbv_tokens_pr}  # = bop.ds_config["ycbv"]["tokens"] (PBR + real; v1 / ycbv_tokens: PBR only)
 C=$P/code_ycbv; cd $C
 hostname
 nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
 T=${TMPDIR:-/tmp}/ycf_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
 df -h $T | tail -1
 for f in $P/data/*; do ln -s $f $T/data/; done
-rm $T/data/ycbv_tokens
-if ! cp -rL $P/data/ycbv_tokens $T/data/; then  # local disk too small: hold it in RAM
-  rm -rf $T/data/ycbv_tokens; mkdir -p /dev/shm/ycf_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/ycf_${PBS_JOBID%%.*}" EXIT
-  cp -rL $P/data/ycbv_tokens /dev/shm/ycf_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/ycf_${PBS_JOBID%%.*}/ycbv_tokens $T/data/
+rm $T/data/$TOK
+if ! cp -rL $P/data/$TOK $T/data/; then  # local disk too small: hold it in RAM
+  rm -rf $T/data/$TOK; mkdir -p /dev/shm/ycf_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/ycf_${PBS_JOBID%%.*}" EXIT
+  cp -rL $P/data/$TOK /dev/shm/ycf_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/ycf_${PBS_JOBID%%.*}/$TOK $T/data/
 fi
 export DATADIR=$T/data
 export PATH=$P/env/liepose/bin:$PATH  # bop_toolkit error scripts run as `python` subprocesses

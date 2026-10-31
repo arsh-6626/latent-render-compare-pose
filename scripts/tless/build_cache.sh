@@ -2,7 +2,7 @@
 # Token cache of a BOP dataset for the field world model (the T-LESS recipe; BOP_DS picks the dataset in bop.ds_config):
 # LiePose's own crops (export_crops.py) -> frozen DINOv2 tokens (encode_crops.py, torch env) -> crop camera and
 # true-centre translation (crop_meta_cache.py). Images are deleted once encoded (--keep_images to keep them).
-#   BOP_DS=ycbv N=180000 scripts/tless/build_cache.sh
+#   BOP_DS=ycbv N=180000 scripts/tless/build_cache.sh   (TOK=<dir>: token dir other than $DATADIR/${BOP_DS}_tokens)
 set -e
 cd "$(dirname "$0")/../.."
 D=${DATADIR:-/media/kavinder/hdd2/liepose_data}
@@ -11,7 +11,7 @@ N=${N:-180000}
 JAX=${JAX_PY:-$HOME/miniconda3/envs/liepose/bin/python}
 TORCH=${TORCH_PY:-$HOME/miniconda3/envs/jepa/bin/python}
 export DATADIR=$D CACHE_ROOT_PATH=${CACHE_ROOT_PATH:-$D/bop_cache} PYTHONPATH=src:lib/bop_toolkit BOP_DS=$NAME
-C=$D/${NAME}_crops; M=$D/${NAME}_crops_meta; T=$D/${NAME}_tokens
+C=$D/${NAME}_crops; M=$D/${NAME}_crops_meta; T=${TOK:-$D/${NAME}_tokens}
 mkdir -p $C $M $T
 for s in test train; do
   extra=$([ $s = train ] && echo "--n $N" || true)
