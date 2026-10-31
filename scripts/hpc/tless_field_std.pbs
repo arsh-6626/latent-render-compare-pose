@@ -9,6 +9,9 @@
 #   qsub -N tlf4-lat -l walltime=24:00:00 -v STAGE=den,MODE=field_full_lat,STEPS=400000,BS=64,NS=64,GA=4,CK=5000 tless_field_std.pbs
 # flow matching instead of diffusion (process=fm; code copy $P/code_fm so that running jobs keep their code):
 #   qsub -N tfm-lat -v STAGE=den,MODE=field_full_lat,PROC=fm,CODE=$P/code_fm tless_field_std.pbs
+# no visible mask (cache built with EXPORT_ARGS=--no_mask, uploaded as data/tless_tokens_nm):
+#   j=$(qsub -N tnm-field -v STAGE=field,TOK=tless_tokens_nm,FIELD=tl_field_nm tless_field_std.pbs)
+#   qsub -N tnm-lat -W depend=afterok:$j -v "STAGE=den,MODE=field_full_lat,TOK=tless_tokens_nm,FIELD=tl_field_nm,TAG=nm,DEN_ARGS=fg_uniform=[True]" tless_field_std.pbs
 #PBS -P hpc.dtu.kavinder
 #PBS -q standard
 #PBS -l select=1:ncpus=12:ngpus=1:mem=96gb:centos=icelake
@@ -25,10 +28,11 @@ nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
 T=${TMPDIR:-/tmp}/tlf_${PBS_JOBID%%.*}; mkdir -p $T/data; trap "rm -rf $T" EXIT
 df -h $T | tail -1
 for f in $P/data/*; do ln -s $f $T/data/; done
-rm $T/data/tless_tokens
-if ! cp -rL $P/data/tless_tokens $T/data/; then  # local disk too small: hold it in RAM
+TOK=${TOK:-tless_tokens}  # staged as data/tless_tokens (e.g. TOK=tless_tokens_nm: the no-mask cache)
+rm -f $T/data/tless_tokens $T/data/$TOK
+if ! cp -rL $P/data/$TOK $T/data/tless_tokens; then  # local disk too small: hold it in RAM
   rm -rf $T/data/tless_tokens; mkdir -p /dev/shm/tlf_${PBS_JOBID%%.*}; trap "rm -rf $T /dev/shm/tlf_${PBS_JOBID%%.*}" EXIT
-  cp -rL $P/data/tless_tokens /dev/shm/tlf_${PBS_JOBID%%.*}/ || exit 1; ln -s /dev/shm/tlf_${PBS_JOBID%%.*}/tless_tokens $T/data/
+  cp -rL $P/data/$TOK /dev/shm/tlf_${PBS_JOBID%%.*}/tless_tokens || exit 1; ln -s /dev/shm/tlf_${PBS_JOBID%%.*}/tless_tokens $T/data/
 fi
 export DATADIR=$T/data
 export PATH=$P/env/liepose/bin:$PATH  # bop_toolkit error scripts run as `python` subprocesses
@@ -43,9 +47,10 @@ if [ "$STAGE" = field ]; then
 else
   S=${STEPS:-100000}
   PA=$([ -n "$PROC" ] && echo "process=[$PROC]" || true); PL=$([ -n "$PROC" ] && echo "_$PROC" || true)  # unset: the diffusion runs as before
+  PL=$PL${TAG:+_$TAG}  # DEN_ARGS: extra options (e.g. fg_uniform=[True]), TAG: log-name suffix
   $P/env/liepose/bin/python -u -m liepose.exp.cmp.tless_field_dit --root_path $W/experiments/tless-field "den_mode=[$MODE]" \
     "field_dir=[$W/probe/$FIELD]" "train_steps=[$S]" "seed=[${SEED:-42}]" "num_workers=[${NW:-8}]" \
-    "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" "ckpt_steps=[${CK:-25000}]" $PA \
+    "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" "ckpt_steps=[${CK:-25000}]" $PA ${DEN_ARGS} \
     >> $W/logs/tless_field_dit_${MODE}_${S}_s${SEED:-42}${PL}.log 2>&1
 fi
 echo "TLESS_FIELD_DONE $STAGE $?"

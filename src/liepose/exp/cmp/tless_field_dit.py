@@ -139,6 +139,8 @@ class Testbed(tless_dit.Testbed):
         b.update(image=jnp.asarray(image), fg=mask_fg(jnp.asarray(mask[..., 0])))
       else:
         b.update(tok=jnp.asarray(d.tokens[row]), fg=jnp.asarray(d.fg[row]))
+      if self.a.fg_uniform:  # no visible mask reaches the denoiser (the cache's train fg only weights the field's loss)
+        b["fg"] = jnp.ones_like(b["fg"])
       return b
 
     return get_flat_batch_train
@@ -272,8 +274,9 @@ class Testbed(tless_dit.Testbed):
         rt = sample(k2, prior(jax.random.split(k1, len(rows))), obs.obj[rows], None, FG_FLOOR + mask_fg(jnp.asarray(mask[..., 0])),
                     jnp.asarray(meta), image)
       else:
+        fg = np.ones_like(obs.fg[rows]) if self.a.fg_uniform else obs.fg[rows]
         rt = sample(k2, prior(jax.random.split(k1, len(rows))), obs.obj[rows], jnp.asarray(obs.tokens[rows], jnp.float32),
-                    jnp.asarray(FG_FLOOR + obs.fg[rows]), jnp.asarray(test_meta[rows]))
+                    jnp.asarray(FG_FLOOR + fg), jnp.asarray(test_meta[rows]))
       rt = jax.block_until_ready(rt)
       dt = time.time() - t0
       seq_rt = self.post_process(rt)[None, :, None]
@@ -304,7 +307,8 @@ def build_explorations():
   e.tl_cache = [None]  # token cache with {split}_crop_meta.npy (default $DATADIR/tless_tokens)
   e.grad_accum = [1]  # micro-batches per step (same gradient, less memory; sp_field_dit)
   e.process = ["diffusion"]  # diffusion (LiePose's) | fm (flow on SE(3)) | fmr3 (flow on SO(3) x R^3); create_sample_train_fn
-  e.fm_delta = [1.0]  # fmr3: pseudo-Huber scale of the translation velocity loss
+  e.fm_delta = [1.0]
+  e.fg_uniform = [False]  # True: uniform token weights in training and test (no-mask caches, export_crops --no_mask)  # fmr3: pseudo-Huber scale of the translation velocity loss
   e.fm_steps = ["10/20/100"]  # fm: ODE steps of the test runs (one BOP19 test each)
   return e
 

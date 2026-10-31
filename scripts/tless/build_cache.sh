@@ -3,6 +3,7 @@
 # LiePose's own crops (export_crops.py) -> frozen DINOv2 tokens (encode_crops.py, torch env) -> crop camera and
 # true-centre translation (crop_meta_cache.py). Images are deleted once encoded (--keep_images to keep them).
 #   BOP_DS=ycbv N=180000 scripts/tless/build_cache.sh   (TOK / CROPS / META: dirs other than $DATADIR/${BOP_DS}_{tokens,crops,crops_meta})
+#   EXPORT_ARGS=--no_mask: crops without the visible mask (test: no mask at all)
 set -e
 cd "$(dirname "$0")/../.."
 D=${DATADIR:-/media/kavinder/hdd2/liepose_data}
@@ -16,7 +17,7 @@ mkdir -p $C $M $T
 for s in test train; do
   extra=$([ $s = train ] && echo "--n $N" || true)
   geo=$([ $s = train ] && echo "--geometry" || true)  # test: the crop camera only, no 3D ground truth (as tless_crops_meta)
-  [ -f $C/$s/.done ] || { $JAX scripts/tless/export_crops.py --split $s $extra --out $C/$s; touch $C/$s/.done; }
+  [ -f $C/$s/.done ] || { $JAX scripts/tless/export_crops.py --split $s $extra ${EXPORT_ARGS} --out $C/$s; touch $C/$s/.done; }
   [ -f $M/$s/.done ] || { $JAX scripts/tless/export_crops.py --split $s $extra --meta_only $geo --out $M/$s; touch $M/$s/.done; }
   [ -f $T/.${s}_encoded ] || { $TORCH scripts/tless/encode_crops.py --crops $C/$s --split $s --out $T; touch $T/.${s}_encoded; }
 done

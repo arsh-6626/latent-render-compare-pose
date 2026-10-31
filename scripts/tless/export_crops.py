@@ -37,6 +37,8 @@ def main():
   p.add_argument("--meta", action="store_true", help="also store META_KEYS per crop")
   p.add_argument("--meta_only", action="store_true", help="META_KEYS (+ KEYS, index) only, no image / mask")
   p.add_argument("--seed", type=int, default=123, help="train augmentation seed")
+  p.add_argument("--no_mask", action="store_true", help="images not multiplied by the visible mask; train keeps the mask "
+                 "(field loss weights, a training annotation), test stores none (encode_crops: uniform weights)")
   a = p.parse_args()
   keys = KEYS + (GEO_KEYS if a.geometry else [])
   keys += [k for k in META_KEYS if (a.meta or a.meta_only) and k not in keys]
@@ -72,8 +74,9 @@ def main():
     if not a.meta_only:
       img = np.asarray(batch["image"], np.float32)
       mask = np.asarray(batch["mask"], np.float32)
-      buf["image"].append(np.clip(img * mask, 0, 255).astype(np.uint8))
-      buf["mask"].append(mask[..., 0] > 0.5)
+      buf["image"].append(np.clip(img if a.no_mask else img * mask, 0, 255).astype(np.uint8))
+      if not (a.no_mask and a.split == "test"):
+        buf["mask"].append(mask[..., 0] > 0.5)
     buf["index"].append(np.asarray(batch["index"]))
     for k in keys:
       buf[k].append(np.asarray(batch[k]))
