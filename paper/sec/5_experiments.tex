@@ -151,7 +151,7 @@ retrieval world model of \cref{sec:supp-ret} raises AR from 41.2 to 54.7 over it
 \paragraph{SPEED+.}
 \Cref{tab:speedplus} reports the full lightbox and sunlamp sets. At 100k $\times$ 32, \method lowers the score from 0.827 to
 0.705 on lightbox and from 0.743 to 0.643 on sunlamp relative to the control, with lower rotation and translation errors on both.
-At the matched budget (400k $\times$ 64, frozen DINOv2) the gap to the control is similar: 0.854 to 0.672 on lightbox and 0.793 to 0.664 on sunlamp, and 0.776 to 0.565 and 0.688 to 0.568 with 16-sample consensus. The field models gain little from the four times larger budget, and both are far from LiePose at the full budget (0.234 / 0.289; 0.165 / 0.223 with consensus). With a trained encoder (\cref{sec:den}) and 100k steps of batch 64,
+At the matched budget (400k $\times$ 64, frozen DINOv2) the gap to the control is similar: 0.854 to 0.672 on lightbox and 0.793 to 0.664 on sunlamp, and 0.776 to 0.565 and 0.688 to 0.568 with 16-sample consensus. Neither field model improves with eight times the training images (the control is slightly worse than at 100k $\times$ 32), and both are far from LiePose at the full budget (0.234 / 0.289; 0.165 / 0.223 with consensus). With a trained encoder (\cref{sec:den}) and 100k steps of batch 64,
 \method reaches 0.412 / 0.480. This run differs from the rows above in both the encoder and the batch, and its control with a trained
 encoder has not been evaluated, so the two effects are not separated. \TODO{describe the matched-budget rows, the trained encoder and selection,
 and the gap to the oracle as an upper bound on what selection could reach. State explicitly that the SPEC2021 entries used the
