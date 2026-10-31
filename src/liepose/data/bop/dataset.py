@@ -1,4 +1,6 @@
 import copy
+import json
+import os
 from typing import List
 
 import numpy as np
@@ -91,6 +93,33 @@ class BOPDataset(Dataset):
     return collate_fn(batch)
 
 
+def use_detections(dataset, det_path, targets_path=None):
+  """Test instances from a BOP detection file (scene_id, image_id, category_id = obj_id, score, bbox xywh, time) in place of
+  the ground-truth annotations: no pose, mask or box of the ground truth reaches the crops. Per image and target object
+  the inst_count best-scored detections are kept (the BOP19 evaluation keeps only those estimates, ranked by score)."""
+  dets = {}
+  for d in json.load(open(det_path)):
+    dets.setdefault((d["scene_id"], d["image_id"], d["category_id"]), []).append(d)
+  targets = None
+  if targets_path:
+    targets = {(t["scene_id"], t["im_id"], t["obj_id"]): t["inst_count"] for t in json.load(open(targets_path))}
+  n_det, n_obj = 0, 0
+  for rec in dataset.dataset_dicts:
+    s, i = rec["scene_id"], rec["image_id"]
+    objs = sorted({a["object_id"] for a in rec.get("annotations", [])}) if targets is None else \
+           sorted(o for (ts, ti, o) in targets if (ts, ti) == (s, i))
+    annos = []
+    for o in objs:
+      k = targets[(s, i, o)] if targets is not None else len([a for a in rec["annotations"] if a["object_id"] == o])
+      for d in sorted(dets.get((s, i, o), []), key=lambda d: -d["score"])[:k]:
+        annos.append({"category_id": dataset.objid2catid[o], "object_id": o, "bbox": list(d["bbox"]), "bbox_est": list(d["bbox"]),
+                      "bbox_mode": "xywh", "score": float(d["score"]), "time": float(d.get("time", 0.0))})
+      n_obj += k
+    n_det += len(annos)
+    rec["annotations"] = annos
+  print(f"detections {os.path.basename(det_path)}: {n_det} crops for {n_obj} target instances")
+
+
 class BOPPoseDataset(BOPDataset):
   def __init__(
     self,
@@ -107,6 +136,8 @@ class BOPPoseDataset(BOPDataset):
     **kwargs,
   ):
     super().__init__(datasets, **kwargs)
+    if not self.is_train and os.environ.get("BOP_DET"):
+      use_detections(self.dataset, os.environ["BOP_DET"], os.environ.get("BOP_DET_TARGETS"))
     self.dataset.flatten_annotations()
     self.equivalent_rots = equivalent_rots
     self.with_coord = with_coord
@@ -178,7 +209,9 @@ class BOPPoseDataset(BOPDataset):
     # calculate bbox range
     bbox_mode = inst_infos["bbox_mode"]
 
-    if "bbox_obj" in inst_infos:
+    # BOP_TRAIN_BOX=visib: crops around the visible box (what a 2D detector predicts, use_detections) instead of the
+    # full projected box
+    if "bbox_obj" in inst_infos and os.environ.get("BOP_TRAIN_BOX", "obj") == "obj":
       bbox = np.asarray(inst_infos["bbox_obj"], dtype=np.float32)
       bbox = bbox_convert_format(bbox, bbox_mode, "xyxy")
       x1, y1, x2, y2 = bbox

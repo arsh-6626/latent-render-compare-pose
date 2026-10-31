@@ -23,6 +23,9 @@ KEYS = ["object_id", "rotation_allo", "translation_scaled"]
 GEO_KEYS = ["cam_crop", "translation_allo", "bbox_center", "bbox_size"]
 # --meta: the feature-field world model's crop camera (sp_geometry.crop_k's box quantities + the image intrinsics)
 META_KEYS = ["bbox", "bbox_center", "dzi_size", "focal_ratio", "cam"]
+# BOP_DET (test crops from a BOP detection file, liepose.data.bop.dataset.use_detections): no ground-truth pose exists;
+# these constant placeholders keep the shard layout and are never read as a pose (the test uses the BOP toolkit's ground truth)
+PLACEHOLDER = {"rotation_allo": [1.0, 0.0, 0.0, 0.0], "translation_scaled": [0.0, 0.0, 0.0]}
 
 
 def main():
@@ -73,12 +76,14 @@ def main():
     n_b = len(batch["index"])
     if not a.meta_only:
       img = np.asarray(batch["image"], np.float32)
-      mask = np.asarray(batch["mask"], np.float32)
+      mask = np.asarray(batch["mask"], np.float32) if "mask" in batch else np.ones(img.shape[:3] + (1,), np.float32)
       buf["image"].append(np.clip(img if a.no_mask else img * mask, 0, 255).astype(np.uint8))
-      if not (a.no_mask and a.split == "test"):
+      if "mask" in batch and not (a.no_mask and a.split == "test"):
         buf["mask"].append(mask[..., 0] > 0.5)
     buf["index"].append(np.asarray(batch["index"]))
     for k in keys:
+      if k not in batch and os.environ.get("BOP_DET") and k in PLACEHOLDER:  # detection crops: no ground-truth pose
+        batch[k] = np.tile(np.asarray(PLACEHOLDER[k], np.float32), (n_b, 1))
       buf[k].append(np.asarray(batch[k]))
     done += n_b
     pbar.update(n_b)

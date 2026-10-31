@@ -332,7 +332,8 @@ def main():
       n = tb.run_test(Options(sample), out, limit=opt.test_limit)
       tb.run_eval(Options(sample), out)
       json.dump({"exp": exp_path, "step": step, "n_instances": n, "sample": sample, "process": opt.process,
-                 "renderer": os.environ.get("BOP_RENDERER", "cpp")}, open(os.path.join(out, "run.json"), "w"), indent=2)
+                 "renderer": os.environ.get("BOP_RENDERER", "cpp"), "detections": os.environ.get("BOP_DET"),
+                 "train_box": os.environ.get("BOP_TRAIN_BOX", "obj"), "fg_uniform": bool(opt.fg_uniform)}, open(os.path.join(out, "run.json"), "w"), indent=2)
 
 
 if __name__ == "__main__":
