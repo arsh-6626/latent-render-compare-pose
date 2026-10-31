@@ -63,7 +63,7 @@ LiePose~\cite{hsiao2024liepose}     & ResNet-34 & GT & 1 & 56.9 & 60.2 & 93.2 & 
 \midrule
 \multicolumn{12}{@{}l}{\emph{Trained by us, ground-truth crops, matched number of training images (400k $\times$ 64)}} \\
 LiePose (our training)              & ResNet-34 & GT & 1 & 63.1 & 65.7 & 92.3 & 73.7 & -- & -- & -- & -- \\ % live weights (tab:supp-ema); logs/tless_test/liepose_se3_400k_noema
-Control (no world model)            & DINOv2-S  & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % tless_field_dit field_nowm 400k: not run
+Control (no world model)            & DINOv2-S  & GT & 1 & 30.3 & 33.7 & 77.9 & 47.3 & \pend & \pend & \pend & \pend \\ % dtu001 experiments/tless-field/train_steps=400000+seed=42+den_mode=field_nowm+field=tl_field_v1/test_400000/scores_bop19.json AR 0.4730, EMA weights, 6815 crops, eval 20/20, VSD renderer vispy (jobs 1126660 + 1128017); EMA vs live check pending
 \method                             & DINOv2-S  & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % tless_field_dit field_full_lat 400k: not run
 \method + selection                 & DINOv2-S  & GT & $N$ & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
 \midrule
