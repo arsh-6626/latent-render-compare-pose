@@ -1,5 +1,6 @@
 import copy
 import itertools
+import os
 from typing import Any, Dict, List
 
 from tabulate import tabulate
@@ -112,10 +113,12 @@ class BOPDatasetLoader:
     **kwargs,
   ):
     self.name = name
-    self.path = path
-    self.models_info_path = models_info_path
+    # resolved paths: the HPC jobs reach the data through per-job symlink dirs, so unresolved paths gave every job its own
+    # cache key (and stale file names), forcing an hours-long annotation rebuild per job
+    self.path = os.path.realpath(path) + ("/" if path.endswith("/") else "")  # slash kept: same keys as before
+    self.models_info_path = os.path.realpath(models_info_path)
     self.detection_path = detection_path
-    self.test_bop_path = test_bop_path
+    self.test_bop_path = test_bop_path if test_bop_path is None else os.path.realpath(test_bop_path)
     self.include_ids = include_ids
     self.cache_path = cache_path
     self.width = width

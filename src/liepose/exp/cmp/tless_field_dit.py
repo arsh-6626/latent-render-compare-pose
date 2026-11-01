@@ -123,7 +123,8 @@ class Testbed(tless_dit.Testbed):
       if self.ft:  # images go to the backbones once per image (masked as the cache), not once per slice
         batch = dict(batch)
         mask = np.asarray(batch["mask"], np.float32)
-        image = np.asarray(batch["image"], np.float32) * mask
+        # fg_uniform: no visible mask reaches the denoiser, so the images are not masked either (as export_crops --no_mask)
+        image = np.asarray(batch["image"], np.float32) * (1.0 if self.a.fg_uniform else mask)
         meta = crop_meta10({k: np.asarray(batch[k]) for k in ("bbox", "bbox_center", "dzi_size", "focal_ratio", "cam")})
         obj = np.asarray(batch["object_id"])
         batch["image"], batch["mask"] = np.zeros((len(image), 1, 1, 3), np.float32), np.ones((len(image), 1, 1, 1), np.float32)
@@ -267,9 +268,11 @@ class Testbed(tless_dit.Testbed):
       assert (obs.obj[rows] == np.asarray(batch["object_id"])).all(), "token cache misaligned with the test dataset"
       key, k1, k2 = jax.random.split(key, 3)
       t0 = time.time()
-      if self.ft:
-        mask = np.asarray(batch["mask"], np.float32)
-        image = jnp.asarray(np.asarray(batch["image"], np.float32) * mask)
+      if self.ft:  # fg_uniform (or detection crops, which carry no mask): unmasked images, uniform weights
+        img = np.asarray(batch["image"], np.float32)
+        mask = np.ones(img.shape[:3] + (1,), np.float32) if self.a.fg_uniform or "mask" not in batch else \
+          np.asarray(batch["mask"], np.float32)
+        image = jnp.asarray(img * mask)
         meta = crop_meta10({k: np.asarray(batch[k]) for k in ("bbox", "bbox_center", "dzi_size", "focal_ratio", "cam")})
         rt = sample(k2, prior(jax.random.split(k1, len(rows))), obs.obj[rows], None, FG_FLOOR + mask_fg(jnp.asarray(mask[..., 0])),
                     jnp.asarray(meta), image)
