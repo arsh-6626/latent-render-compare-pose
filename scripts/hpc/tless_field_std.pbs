@@ -40,6 +40,8 @@ export PYTHONPATH=$C/src:$C/lib/bop_toolkit
 export TORCH_HOME=$P/torch_home XDG_CACHE_HOME=$T/xdg_cache CACHE_ROOT_PATH=$T/bop_cache
 cp -r $P/data/bop_cache $T/bop_cache
 export XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 BOP_RENDERER=vispy
+# faulty GPU (e.g. "Unable to determine the device handle"): jax silently falls back to CPU, so refuse to run
+$P/env/liepose/bin/python -c "import jax; assert jax.default_backend() == \"gpu\", jax.devices()" || { echo "NO_GPU on $(hostname)"; exit 3; }
 mkdir -p $W/probe $W/experiments/tless-field $W/logs
 if [ "$STAGE" = field ]; then
   $P/env/liepose/bin/python -u -m liepose.exp.jepa_probe.tless_field --out $W/probe/$FIELD ${FIELD_ARGS} \
