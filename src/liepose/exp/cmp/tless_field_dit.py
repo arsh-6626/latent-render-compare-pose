@@ -189,9 +189,10 @@ class Testbed(tless_dit.Testbed):
       if huber:  # [translation | rotation] velocity: pseudo-Huber on translation (train tails reach |t| ~ 47), MSE on rotation
         r = mu - mb["zt"]
         d = self.a.fm_delta
-        return jnp.mean(jnp.sum(d ** 2 * (jnp.sqrt(1 + (r[:, :3] / d) ** 2) - 1), -1) + jnp.sum(r[:, 3:] ** 2, -1))
+        return jnp.mean(jnp.sum(d ** 2 * (jnp.sqrt(1 + (r[:, :3] / d) ** 2) - 1), -1) + jnp.sum(r[:, 3:] ** 2, -1)) \
+          + self.a.joint_w * f_loss
       if fm:  # velocity regression in se(3)
-        return jnp.mean(jnp.sum((mu - mb["zt"]) ** 2, -1))
+        return jnp.mean(jnp.sum((mu - mb["zt"]) ** 2, -1)) + self.a.joint_w * f_loss
       return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(mb["zt"], mu)) + self.a.joint_w * f_loss
 
     def update_fn(state, batch):
