@@ -41,7 +41,7 @@ computed by us. The GDRNPP numbers that~\cite{hsiao2024liepose} compares with ar
 dataset and detected boxes (67.6 / 75.1 / 90.2), not a ground-truth-crop result. Published rows train on PBR and
 real images; $^\S$per-metric recalls from the BOP leaderboard~\cite{bopleaderboard}, as the papers report AR only (GDRNPP) or no BOP
 numbers (ZebraPose). $^\ddagger$Encoder trained (a frozen copy gives the comparison space). Results with the retrieval-referenced
-world model are in \cref{tab:supp-ret-bop}. We do not train LiePose on YCB-V (--). \TODO{YCB-V 400k rows.}}
+world model are in \cref{tab:supp-ret-bop}. We do not train LiePose on YCB-V (--).}
 \label{tab:bop}
 \small
 \setlength{\tabcolsep}{4.2pt}
@@ -63,8 +63,8 @@ LiePose~\cite{hsiao2024liepose}     & ResNet-34 & GT & 1 & 56.9 & 60.2 & 93.2 & 
 \midrule
 \multicolumn{12}{@{}l}{\emph{Trained by us, ground-truth crops, matched number of training images (400k $\times$ 64)}} \\
 LiePose (our training)              & ResNet-34 & GT & 1 & 63.1 & 65.7 & 92.3 & 73.7 & -- & -- & -- & -- \\ % live weights (tab:supp-ema); logs/tless_test/liepose_se3_400k_noema
-Control (no world model)            & DINOv2-S  & GT & 1 & 30.3 & 33.7 & 77.9 & 47.3 & \pend & \pend & \pend & \pend \\ % dtu001 experiments/tless-field/train_steps=400000+seed=42+den_mode=field_nowm+field=tl_field_v1/test_400000/scores_bop19.json AR 0.4730, EMA weights, 6815 crops, eval 20/20, VSD renderer vispy (jobs 1126660 + 1128017); EMA vs live (job 1128378, 50 held-out batches): loss 1.647 vs 1.691, EMA kept
-\method                             & DINOv2-S  & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % tless_field_dit field_full_lat 400k: not run
+Control (no world model)            & DINOv2-S  & GT & 1 & 30.3 & 33.7 & 77.9 & 47.3 & 48.4 & 51.4 & 64.1 & 54.6 \\ % dtu001 experiments/tless-field/train_steps=400000+seed=42+den_mode=field_nowm+field=tl_field_v1/test_400000/scores_bop19.json AR 0.4730, EMA weights, 6815 crops, eval 20/20, VSD renderer vispy (jobs 1126660 + 1128017); EMA vs live (job 1128378, 50 held-out batches): loss 1.647 vs 1.691, EMA kept
+\method                             & DINOv2-S  & GT & 1 & 68.8 & 69.5 & 88.5 & 75.6 & 78.0 & 76.5 & 81.9 & 78.8 \\ % dtu001 experiments/{tless-field/...field_full_lat+field=tl_field_v1,ycbv-field/...field_full_lat+field=yc_field_v2}/test_400000/evaluation_summary.txt Avg 88.51/69.51/68.79 (T-LESS), 81.90/76.50/77.96 (YCB-V); YCB-V control field_nowm+field=yc_field_v2 64.07/51.39/48.41; EMA weights (EMA vs live check pending for these three)
 \method + selection                 & DINOv2-S  & GT & $N$ & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
 \midrule
 \multicolumn{12}{@{}l}{\emph{Trained by us, ground-truth crops, 100k $\times$ 32 (an eighth of the training images, 16 noisy poses)}} \\
@@ -170,7 +170,7 @@ unlabeled test-domain images and are not under our protocol.}
 \caption{\textbf{What the denoiser reads from the field.} Same denoiser and budget (100k steps $\times$ batch 32, 16 noisy poses per
 image), one sample, frozen DINOv2. T-LESS: AR (\%, $\uparrow$); SPEED+: score $S$ on lightbox / sunlamp ($\downarrow$). Statistics: per token,
 the cosine and squared distance between $\zhat_p$ and $\zobs_p$, the opacity $\opa_p$, and the cosines of $\zobs_p$ with the 9 rendered
-tokens around $p$. \TODO{fill the T-LESS column.}}
+tokens around $p$.}
 \label{tab:abl-den}
 \footnotesize
 \setlength{\tabcolsep}{3pt}
@@ -179,11 +179,11 @@ tokens around $p$. \TODO{fill the T-LESS column.}}
 Denoiser input per token & T-LESS & SPEED+ \\
 \midrule
 $[\zobs,w]$ (control)                                   & 40.5  & 0.827 / 0.743 \\ % field_nowm (T-LESS dtu001 test_100000; SPEED+ frozen_100k_full_nowm.txt)
-$[\zobs,\zhat,\zhat-\zobs,w]$                           & \pend & 0.742 / 0.687 \\ % field_full
+$[\zobs,\zhat,\zhat-\zobs,w]$                           & 69.9  & 0.742 / 0.687 \\ % field_full; T-LESS local larp_abl test_100000 Avg(30) 84.77/62.67/62.40
 $[\zobs,\zhat,\zhat-\zobs,w,\hlat]$ (\method)            & 72.4  & 0.705 / 0.643 \\ % field_full_lat; T-LESS dtu001 tless_field_dit_field_full_lat_100000_s42
-\quad + statistics, raw channels dropped ($p{=}0.5$)     & \pend & 0.758 / 0.724 \\ % field_drop
-Statistics only (no $\zobs$)                            & \pend & 1.516 / 1.507 \\ % field_bneck
-Statistics $+\ \hlat$ (no $\zobs$)                      & \pend & 1.318 / 1.326 \\ % field_bneck_lat
+\quad + statistics, raw channels dropped ($p{=}0.5$)     & 62.7  & 0.758 / 0.724 \\ % field_drop; T-LESS 79.24/54.44/54.48
+Statistics only (no $\zobs$)                            & 42.7  & 1.516 / 1.507 \\ % field_bneck; T-LESS 58.58/32.87/36.64
+Statistics $+\ \hlat$ (no $\zobs$)                      & 51.0  & 1.318 / 1.326 \\ % field_bneck_lat; T-LESS 66.83/41.26/44.92
 \midrule
 Energy only (control + selection)                       & \pend & \pend \\
 \color{gray}Oracle $\zhat$: GT-view tokens (diag.)       & \pend & \pend \\
@@ -199,7 +199,9 @@ With only per-token comparison statistics and no observation features, the denoi
 Adding the latent recovers part of this (1.318 / 1.326). Training with the raw channels dropped for half the images, so that the
 denoiser must also pose from the statistics, does not help (0.758 / 0.724). The observation's own features are therefore needed: the
 field's rendering is not precise enough to replace them, and the denoiser uses it as an additional input.
-\TODO{T-LESS column; energy-only and oracle rows.}
+T-LESS shows the same ordering, with larger gaps: the rendered tokens and their difference raise AR from 40.5 to 69.9 and the latent
+to 72.4; dropping the raw channels lowers it to 62.7; statistics alone reach 42.7, barely above the control, and 51.0 with the latent.
+\TODO{energy-only and oracle rows.}
 
 \begin{table}[t]
 \centering
