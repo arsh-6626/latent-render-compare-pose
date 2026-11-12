@@ -22,13 +22,13 @@ import flax
 import jax
 import jax.numpy as jnp
 import numpy as np
-from flax.core import FrozenDict, unfreeze
+from flax.core import FrozenDict, freeze, unfreeze
 from jaxlie import R3SO3, SE3, SO3
 from tqdm import tqdm
 
 from liepose.exp.bop import run as bop_run
 from liepose.exp.bop.ds_config import DS
-from liepose.exp.jepa_probe.probe_frozen import FG_FLOOR
+from liepose.exp.jepa_probe.probe_frozen import FG_FLOOR, weighted_energy
 from liepose.exp.jepa_probe.probe_tless import TokenSplit
 from liepose.exp.jepa_probe.tless_field import crop_meta10, load_tless_field
 from liepose.exp.jepa_probe.wm_eval import app_stats
@@ -75,12 +75,23 @@ class Testbed(tless_dit.Testbed):
       model = FieldDenoiser(mode=self.base_mode, dim=self.a.dit_dim, depth=self.a.dit_depth, use_k=False)
       params = unfreeze(model.init(jax.random.PRNGKey(self.a.seed), jnp.zeros((n, 6)), jnp.zeros((n, 1)), k2,
                                    z, jnp.ones((n, 64)), z, jnp.ones((n, 64)), hz))
+    if self.a.joint:  # A1: the comparison space is trained, so the field is trained with it (field loss, update_fn)
+      assert self.ft, "joint: *_ft modes only"
+      params["params"]["field"] = unfreeze(self.field_params)["params"]
     params["batch_stats"] = {}
     return model, FrozenDict(params)
 
-  def _render(self, obj, Rg, tg, kg, z_obs):
-    """frozen field of each hypothesis' object at (allocentric R, translation_scaled) in the observation's crop"""
-    return jax.lax.stop_gradient(self.field_model.apply(self.field_params, obj, Rg, tg, kg, app_stats(z_obs), with_latent=True))
+  def _render(self, obj, Rg, tg, kg, z_obs, fparams=None):
+    """field of each hypothesis' object at (allocentric R, translation_scaled) in the observation's crop; never trained
+    through the denoiser (stop-gradient); joint: the field's current (or EMA) parameters"""
+    return jax.lax.stop_gradient(self.field_model.apply(fparams or self.field_params, obj, Rg, tg, kg, app_stats(z_obs), with_latent=True))
+
+  @staticmethod
+  def _split_field(params):
+    """joint: (denoiser params without the field, {"params": field params} or None)"""
+    if "field" not in params:
+      return params, None
+    return {k: v for k, v in params.items() if k != "field"}, {"params": params["field"]}
 
   # --- train ---
 
@@ -138,6 +149,10 @@ class Testbed(tless_dit.Testbed):
       b.update(Rg=Rg, tg=tg, kg=jnp.asarray(np.repeat(meta, s, 0)), obj=jnp.asarray(np.repeat(obj, s)))
       if self.ft:
         b.update(image=jnp.asarray(image), fg=mask_fg(jnp.asarray(mask[..., 0])))
+        if self.a.joint:  # GT pose of each image (allocentric R, translation_scaled), for the field's fitting loss
+          q = np.asarray(batch["rotation_allo"], np.float32)
+          b.update(R0=jax.vmap(lambda x: SO3(x).as_matrix())(jnp.asarray(q)), t0=jnp.asarray(np.asarray(batch["translation_scaled"], np.float32)),
+                   k0=jnp.asarray(meta), obj0=jnp.asarray(obj), fg0=b["fg"])  # fg0: the training visible mask (kept under fg_uniform)
       else:
         b.update(tok=jnp.asarray(d.tokens[row]), fg=jnp.asarray(d.fg[row]))
       if self.a.fg_uniform:  # no visible mask reaches the denoiser (the cache's train fg only weights the field's loss)
@@ -158,14 +173,18 @@ class Testbed(tless_dit.Testbed):
       s = mb["rt"].shape[0] // mb["fg"].shape[0]
       w = jnp.repeat(FG_FLOOR + mb["fg"], s, 0)
       keep = jnp.repeat(mb["keep"], s, 0) if "keep" in mb else None
-      z_ext = None
-      if "image" in mb:  # frozen copy -> z_obs (the field's comparison space), trainable copy -> z_ext
-        z_obs, z_ext = model.apply({"params": params}, mb["image"], method=FtFieldDenoiser.encode)
+      z_ext, f_loss = None, 0.0
+      params, fparams = self._split_field(params)
+      if "image" in mb:  # frozen (joint: EMA) copy -> z_obs (the field's comparison space), trainable copy -> z_ext
+        z_img, z_ext = model.apply({"params": params}, mb["image"], method=FtFieldDenoiser.encode)
         z_ext = jnp.repeat(z_ext, s, 0)
       else:
-        z_obs = mb["tok"].astype(jnp.float32)
-      z_obs = jnp.repeat(z_obs, s, 0)
-      z_hat, opa, h = self._render(mb["obj"], mb["Rg"], mb["tg"], mb["kg"], z_obs)
+        z_img = mb["tok"].astype(jnp.float32)
+      if fparams is not None:  # the field's fitting loss at the GT pose, towards the (stop-gradient) EMA tokens
+        pred = self.field_model.apply(fparams, mb["obj0"], mb["R0"], mb["t0"], mb["k0"], app_stats(z_img))
+        f_loss = weighted_energy(pred, z_img, FG_FLOOR + mb.get("fg0", mb["fg"])).mean()
+      z_obs = jnp.repeat(z_img, s, 0)
+      z_hat, opa, h = self._render(mb["obj"], mb["Rg"], mb["tg"], mb["kg"], z_obs, fparams)
       mu = model.apply({"params": params}, mb["rt"], t, mb["kg"], z_obs, w, z_hat, opa, h, keep, z_ext)
       if huber:  # [translation | rotation] velocity: pseudo-Huber on translation (train tails reach |t| ~ 47), MSE on rotation
         r = mu - mb["zt"]
@@ -173,10 +192,10 @@ class Testbed(tless_dit.Testbed):
         return jnp.mean(jnp.sum(d ** 2 * (jnp.sqrt(1 + (r[:, :3] / d) ** 2) - 1), -1) + jnp.sum(r[:, 3:] ** 2, -1))
       if fm:  # velocity regression in se(3)
         return jnp.mean(jnp.sum((mu - mb["zt"]) ** 2, -1))
-      return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(mb["zt"], mu))
+      return jnp.mean(jax.vmap(lie_metrics.get_distance_fn(loss_name))(mb["zt"], mu)) + self.a.joint_w * f_loss
 
     def update_fn(state, batch):
-      keys = ("rt", "t", "zt", "Rg", "tg", "kg", "obj", "fg") + tuple(k for k in ("tok", "image") if k in batch)
+      keys = ("rt", "t", "zt", "Rg", "tg", "kg", "obj", "fg") + tuple(k for k in ("tok", "image", "R0", "t0", "k0", "obj0", "fg0") if k in batch)
       mb = {k: batch[k] for k in keys}
       n_img = mb["fg"].shape[0]
       if self.base_mode == "field_drop":  # per image (all its slices), from the step's noise draws (no extra rng state)
@@ -196,7 +215,12 @@ class Testbed(tless_dit.Testbed):
         zero = (jnp.zeros(()), jax.tree_util.tree_map(jnp.zeros_like, state.params))
         (loss, grads), _ = jax.lax.scan(acc, zero, chunks)
         loss, grads = jax.tree_util.tree_map(lambda x: x / m, (loss, grads))
-      return loss, state.apply_gradients(grads=grads)
+      state = state.apply_gradients(grads=grads)
+      if self.a.joint:  # the comparison space follows the trained encoder slowly (EMA target, BYOL / JEPA style)
+        p, tau = unfreeze(state.params), self.a.joint_tau
+        p["dino_frozen"] = jax.tree_util.tree_map(lambda f, d: tau * f + (1 - tau) * d, p["dino_frozen"], p["dino"])
+        state = state.replace(params=freeze(p) if isinstance(state.params, FrozenDict) else p)
+      return loss, state
 
     return update_fn
 
@@ -205,6 +229,9 @@ class Testbed(tless_dit.Testbed):
   def create_sampler(self, n_steps=100):
     model, poses = self.model, self._poses_fn()
     params = {"params": self.state.params_ema if self.a.ema_enabled else self.state.params}
+    params["params"], fp = self._split_field(params["params"])
+    if fp is not None:
+      self.field_params = fp  # joint: the trained field (run_select / energies use self._render)
     T = self.noise_schedule.timesteps
     fm = self.a.process in FM
     if fm:  # Euler steps of the ODE on the group, tau 1 -> 0: g <- g Exp(-(tau - tau') v)
@@ -235,9 +262,9 @@ class Testbed(tless_dit.Testbed):
 
     encode = jax.jit(lambda image: model.apply(params, image, method=FtFieldDenoiser.encode)) if self.ft else None
 
-    def sample(key, rt, obj, tok, fg, meta, image=None):
-      """tok: the cached tokens, or (ft) None with the masked crop images, encoded once per image"""
-      z_ext = None
+    def sample(key, rt, obj, tok, fg, meta, image=None, z_ext=None):
+      """tok: the cached tokens, or (ft) None with the masked crop images, encoded once per image; or (ft, run_select)
+      tok and z_ext already encoded (self._encode) and repeated per chain"""
       if image is not None:
         tok, z_ext = encode(image)
       obj = jnp.asarray(obj)
@@ -246,6 +273,7 @@ class Testbed(tless_dit.Testbed):
         key, rt = step(key, rt, t, tp, obj, tok, fg, meta, z_ext)
       return rt
 
+    self._encode = encode
     return sample
 
   def run_test(self, opt, opt_path, limit=None):
@@ -290,6 +318,134 @@ class Testbed(tless_dit.Testbed):
     evaluator.summarize()
     return n
 
+  def run_select(self, opt, opt_path, S=16, Ns=(1, 4, 16), limit=None, depth_grid=None):
+    """Selection among N samples (paper tab:select / "+ selection" rows), token-cache modes. Each crop gets S independent
+    chains of the plain sampler (same sampler as run_test); the first N of them are the candidates for N in Ns. Rules:
+      consensus  the sample with the most others within 10 deg (symmetry-aware geodesic; ties: smaller mean distance),
+                 as speedplus/consensus_score.py; no ground truth, no world model
+      energy     the lowest field energy at the final pose (eq:energy: foreground-weighted squared token distance between
+                 the field's render and the observed tokens); no ground truth
+      oracle     the smallest symmetry-aware rotation error to the ground truth (diagnostic only)
+    N = 1 is the first sample for every rule. Writes one BOP19 csv per (rule, N) under opt_path/{rule}_n{N} (N = 1:
+    opt_path/n1) and all samples with their energies to opt_path/samples.npz; inference reads the crop's tokens, mask
+    and box only, ground truth is read by the oracle rule alone.
+    depth_grid (lo, hi, K): also n1_dz, sample 0 with its depth replaced by the lowest-energy one among K factors in
+    [lo, hi] of its metric depth (rotation and image-plane position kept; the scaled depth of LiePose's translation is
+    linear in the metric depth: z' = s (z + off) - off). GT-free."""
+    from scipy.spatial.transform import Rotation
+
+    from liepose.exp.jepa_probe.probe_tless import load_symmetries
+    from liepose.data.bop.evaluator import wxyz_to_xyzw
+    self.opt = opt
+    obs = TokenSplit(self.cache, "test")
+    test_meta = None if self.ft else np.load(os.path.join(self.cache, "test_crop_meta.npy")).astype(np.float32)
+    row_of = {int(i): r for r, i in enumerate(obs.index)}
+    dataset = self.create_test_dataset()
+    assert len(dataset.dataset) == len(obs.index), (len(dataset.dataset), len(obs.index))
+    Ns = tuple(N for N in Ns if N <= S)
+    names = ["n1"] + [f"{r}_n{N}" for N in Ns if N > 1 for r in ("consensus", "energy", "oracle")]
+    if depth_grid:
+      names.append("n1_dz")
+      dz = np.linspace(*depth_grid[:2], int(depth_grid[2])).astype(np.float32)
+      off = jnp.float32(self.a.tran_offset[2])
+    evals = {}
+    for nm in names:
+      self.opt_path = os.path.join(opt_path, nm)
+      os.makedirs(self.opt_path, exist_ok=True)
+      evals[nm] = self.create_test_evaluator(dataset)
+    self.opt_path = opt_path
+    D = os.environ["DATADIR"]
+    syms = load_symmetries(os.path.join(D, DS["models_info"]))
+    lm, Lie, poses = self.lie_metrics, self.Lie, self._poses_fn()
+    prior = jax.jit(jax.vmap(lambda k: lm.as_repr(Lie.sample_uniform(k), self.a.repr_type)))
+    sample = self.create_sampler(opt.steps)
+
+    @jax.jit
+    def energy(rt, obj, z_obs, w, kg):
+      Rg, tg = poses(rt)
+      z_hat, _, _ = self._render(obj, Rg, tg, kg, z_obs)
+      e = ((z_hat - z_obs) ** 2).mean(-1)
+      return (w * e).sum(-1) / w.sum(-1)
+
+    @jax.jit
+    def energy_t(Rg, tg, obj, z_obs, w, kg):
+      z_hat, _, _ = self._render(obj, Rg, tg, kg, z_obs)
+      e = ((z_hat - z_obs) ** 2).mean(-1)
+      return (w * e).sum(-1) / w.sum(-1)
+
+    def sym_dist(Ra, Rb, sy):
+      """(a,3,3), (b,3,3), (m,3,3) -> (a,b) min over symmetries of the geodesic angle (deg) between Ra and Rb @ s"""
+      Rbs = np.einsum("bij,mjk->bmik", Rb, sy)
+      c = (np.einsum("aij,bmij->abm", Ra, Rbs) - 1) / 2
+      return np.degrees(np.arccos(np.clip(c, -1, 1))).min(-1)
+
+    key, n = jax.random.PRNGKey(self.a.seed + 2), 0
+    out_idx, out_pose, out_e, out_dz = [], [], [], []
+    for batch in tqdm(dataset, desc="Select"):
+      rows = np.array([row_of[int(i)] for i in np.asarray(batch["index"])])
+      assert (obs.obj[rows] == np.asarray(batch["object_id"])).all(), "token cache misaligned with the test dataset"
+      B = len(rows)
+      rr = np.repeat(rows, S)  # crop-major: the S chains of a crop are consecutive
+      key, k1, k2 = jax.random.split(key, 3)
+      t0 = time.time()
+      obj = obs.obj[rr]
+      if self.ft:  # as run_test: the crop image (x visible mask) through the trained encoder, once per crop
+        img = np.asarray(batch["image"], np.float32)
+        mask = np.ones(img.shape[:3] + (1,), np.float32) if self.a.fg_uniform or "mask" not in batch else \
+          np.asarray(batch["mask"], np.float32)
+        tok0, ze0 = self._encode(jnp.asarray(img * mask))
+        meta = crop_meta10({k: np.asarray(batch[k]) for k in ("bbox", "bbox_center", "dzi_size", "focal_ratio", "cam")})
+        tok, ze = jnp.repeat(tok0, S, 0), jnp.repeat(ze0, S, 0)
+        w = jnp.repeat(FG_FLOOR + mask_fg(jnp.asarray(mask[..., 0])), S, 0)
+        kg = jnp.repeat(jnp.asarray(meta), S, 0)
+      else:
+        tok, ze = jnp.asarray(obs.tokens[rr], jnp.float32), None
+        w, kg = jnp.asarray(FG_FLOOR + obs.fg[rr]), jnp.asarray(test_meta[rr])
+      rt = sample(k2, prior(jax.random.split(k1, B * S)), obj, tok, w, kg, None, ze)
+      e = np.asarray(energy(rt, jnp.asarray(obj), tok, w, kg)).reshape(B, S)
+      dt = (time.time() - t0) / S  # per-sample time, as one run_test sample
+      pose = np.asarray(self.post_process(rt)).reshape(B, S, 7)
+      if depth_grid:  # sample 0 of each crop: energy over depth factors, rotation and image-plane position fixed
+        r0 = np.arange(B) * S
+        Rg0, tg0 = poses(rt[r0])
+        o0, z0, w0, k0 = jnp.asarray(obj[r0]), tok[r0], w[r0], kg[r0]
+        ed = np.stack([np.asarray(energy_t(Rg0, tg0.at[:, 2].set(f * (tg0[:, 2] + off) - off), o0, z0, w0, k0)) for f in dz], 1)
+        best = dz[ed.argmin(1)]
+        pose_dz = pose[:, 0].copy()
+        pose_dz[:, 6] = best * (pose_dz[:, 6] + float(off)) - float(off)
+        out_dz.append(best)
+      out_idx.append(np.asarray(batch["index"])); out_pose.append(pose); out_e.append(e)
+      for b in range(B):
+        inp = {k: (v[b] if hasattr(v, "__len__") and len(v) == B else v) for k, v in batch.items()}
+        Rs = np.stack([evals["n1"]._process_pose(inp, pose[b, s])[0] for s in range(S)])
+        sy = syms[int(inp["object_id"])]
+        G = sym_dist(Rs, Rs, sy)
+        gt = Rotation.from_quat(wxyz_to_xyzw(np.asarray(inp["rotation"], np.float64))).as_matrix()
+        err = sym_dist(gt[None], Rs, sy)[0]
+        pick = {"n1": 0}
+        for N in Ns:
+          if N == 1:
+            continue
+          g = G[:N, :N]
+          pick[f"consensus_n{N}"] = int(((g < 10).sum(-1) - 1e-3 * g.mean(-1)).argmax())
+          pick[f"energy_n{N}"] = int(e[b, :N].argmin())
+          pick[f"oracle_n{N}"] = int(err[:N].argmin())
+        one = {k: (v[b:b + 1] if hasattr(v, "__len__") and len(v) == B else v) for k, v in batch.items()}
+        if depth_grid:
+          sel = pose_dz[b][None, None, None]
+          evals["n1_dz"].process(one, {"seq_r0": sel, "seq_rt": sel, "time": dt * (1 + len(dz))})
+        for nm, j in pick.items():
+          sel = pose[b, j][None, None, None]
+          evals[nm].process(one, {"seq_r0": sel, "seq_rt": sel, "time": dt * (1 if nm == "n1" else int(nm.rsplit("n", 1)[1]))})
+      n += B
+      if limit is not None and n >= limit:
+        break
+    np.savez(os.path.join(opt_path, "samples.npz"), index=np.concatenate(out_idx), pose=np.concatenate(out_pose),
+             energy=np.concatenate(out_e), **({"depth_factor": np.concatenate(out_dz)} if depth_grid else {}))
+    for nm, ev in evals.items():
+      ev.summarize()
+    return n, names
+
 
 FM = ("fm", "fmr3")
 
@@ -313,6 +469,11 @@ def build_explorations():
   e.fm_delta = [1.0]
   e.fg_uniform = [False]  # True: uniform token weights in training and test (no-mask caches, export_crops --no_mask)  # fmr3: pseudo-Huber scale of the translation velocity loss
   e.fm_steps = ["10/20/100"]  # fm: ODE steps of the test runs (one BOP19 test each)
+  e.depth_grid = [None]  # "lo/hi/K" with select_n: also n1_dz (field-energy depth search on sample 0)
+  e.select_n = [0]
+  e.joint = [False]  # A1 (*_ft): train the comparison space (EMA of the trained DINOv2) and the field with the denoiser
+  e.joint_tau = [0.999]  # EMA decay of the comparison encoder
+  e.joint_w = [1.0]  # weight of the field's fitting loss
   return e
 
 
@@ -322,12 +483,24 @@ def main():
     opt.pop("sample_options", None)
     field = os.path.basename(os.path.normpath(opt.field_dir))
     exp_path = os.path.join(a.root_path, opt.to_string(includes=["den_mode", "train_steps", "seed"]) + f"+field={field}"
-                            + ("" if opt.process == "diffusion" else f"+process={opt.process}"))
+                            + ("" if opt.process == "diffusion" else f"+process={opt.process}")
+                            + (f"+joint={opt.joint_tau}" if opt.joint else ""))
     tb = Testbed(opt, exp_path, setup=True)
     if not opt.skip_train:
       save_config(opt, os.path.join(exp_path, "configs.yaml"))
       tb.run_train()
     step = int(tb.state.step)
+    if opt.select_n:
+      out = os.path.join(exp_path, f"test_{step}_sel{opt.select_n}" + ("_dz" if opt.depth_grid else ""))
+      dg = [float(x) for x in str(opt.depth_grid).split("/")] if opt.depth_grid else None
+      sel_sample = dict(SAMPLE, batch_size=int(os.environ.get("SEL_BS", SAMPLE["batch_size"])))  # crops per batch (memory only)
+      n, names = tb.run_select(Options(sel_sample), out, S=int(opt.select_n), limit=opt.test_limit, depth_grid=dg)
+      for nm in names:
+        tb.run_eval(Options(SAMPLE), os.path.join(out, nm))
+      json.dump({"exp": exp_path, "step": step, "n_instances": n, "sample": SAMPLE, "select_n": int(opt.select_n), "depth_grid": opt.depth_grid,
+                 "runs": names, "renderer": os.environ.get("BOP_RENDERER", "cpp"), "detections": os.environ.get("BOP_DET"),
+                 "fg_uniform": bool(opt.fg_uniform)}, open(os.path.join(out, "run.json"), "w"), indent=2)
+      continue
     runs = [(f"test_{step}", SAMPLE)] if opt.process == "diffusion" else \
            [(f"test_{step}_n{n}", dict(SAMPLE, steps=int(n))) for n in str(opt.fm_steps).split("/")]
     for name, sample in runs:

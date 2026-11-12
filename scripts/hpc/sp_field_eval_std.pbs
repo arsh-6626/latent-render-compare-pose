@@ -18,8 +18,10 @@ for f in $P/data/*; do ln -s $f $T/data/; done
 rm $T/data/speedplus_tokens; cp -rL $P/data/speedplus_tokens $T/data/ || exit 1
 export DATADIR=$T/data SPEEDPLUS_ROOT=$P/data/speedplusv2
 export PYTHONPATH=$C/src:$C/lib/bop_toolkit XLA_PYTHON_CLIENT_MEM_FRACTION=0.9
-PY=$P/env/liepose/bin/python; F=$P/data/probe/sp_field_v1; O=$EXP/eval_${STEP}_n16
+PY=$P/env/liepose/bin/python; F=$P/data/probe/sp_field_v1; O=$EXP/eval_${STEP}_${OTAG:-n16}
 mkdir -p $O
+# OTAG=sel: a fresh 16-chain run that also saves each chain's final energy (selection, tab:select); same weights choice
+[ -f $O/ema_check.json ] || cp $EXP/eval_${STEP}_n16/ema_check.json $O/ 2>/dev/null
 [ -f $O/ema_check.json ] || $PY -u scripts/speedplus/ema_check.py --module sp_field_dit --den_mode $MODE --field_dir $F \
   --restore $EXP/ckpt --step $STEP --out $O/ema_check.json || exit 1
 USE=$($PY -c "import json; print(json.load(open('$O/ema_check.json'))['use'])"); echo "weights: $USE"

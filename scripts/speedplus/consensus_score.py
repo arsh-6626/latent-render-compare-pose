@@ -31,6 +31,7 @@ def main():
   p.add_argument("--samples", required=True)
   p.add_argument("--crops", required=True)
   p.add_argument("--out", default=None)
+  p.add_argument("--Ns", default="1,4,16", help="selection among the first N samples: consensus, energy (if saved), oracle")
   p.add_argument("--allow_partial", action="store_true", help="val sweeps on the first n crops only (never for test splits)")
   a = p.parse_args()
   sm = np.load(a.samples)
@@ -52,6 +53,20 @@ def main():
     r.update(e_q_gt10=float((e > 10).mean()), e_q_gt90=float((e > 90).mean()))
     res[name] = r
     print(name, json.dumps(r), flush=True)
+  # selection among the first N samples (tab:select): consensus; energy = lowest final-pose field energy (test_branch.py's E,
+  # no ground truth); oracle = smallest rotation error to the ground truth (diagnostic only)
+  geo = lambda Rs: np.degrees(np.arccos(np.clip((np.einsum("nsij,nij->ns", Rs, R_gt) - 1) / 2, -1, 1)))
+  res["select"] = {}
+  for N in [int(x) for x in a.Ns.split(",") if int(x) <= S]:
+    rules = {"consensus": consensus(R[:, :N]), "oracle": geo(R[:, :N]).argmin(1)}
+    if "E" in sm.files:
+      rules["energy"] = sm["E"][:, :N].argmin(1)
+    for name, c in rules.items():
+      r = esa(R[ar, c], t[ar, c], R_gt, t_gt)
+      e = np.degrees(np.arccos(np.clip((np.einsum("nij,nij->n", R[ar, c], R_gt) - 1) / 2, -1, 1)))
+      r.update(e_q_gt10=float((e > 10).mean()), e_q_gt90=float((e > 90).mean()))
+      res["select"][f"{name}_n{N}"] = r
+      print(f"{name}_n{N}", json.dumps(r), flush=True)
   if a.out:
     json.dump(res, open(a.out, "w"), indent=1)
 

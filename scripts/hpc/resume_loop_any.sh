@@ -34,7 +34,7 @@ while true; do
     if [ "$done_" -gt 0 ]; then echo "$(date '+%F %T') $NAME has its test result" >> $LOG; exit 0; fi
     if [ "$n" -ge "$MAX" ]; then echo "$(date '+%F %T') $NAME: $MAX resubmits used, stopping" >> $LOG; exit 1; fi
     jid=$(rsh "cd $SDIR && qsub -N $NAME $*" | tail -1)
-    n=$((n + 1))
+    [ -n "$jid" ] && n=$((n + 1))  # a failed qsub (login outage) does not use up a resubmit
     echo "$(date '+%F %T') resubmitted $NAME -> $jid" >> $LOG
   fi
   sleep 900

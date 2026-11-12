@@ -127,6 +127,8 @@ def create_branch_sampler(tb, n_steps, K, n_branch, S=16, lam=0.0):
     return rt
 
   sample.stats = stats
+  sample.energy = jax.jit(energy)  # final-pose energy of each chain (eq:energy), saved as E for consensus_score.py's energy rule
+  sample.encode = encode
   return sample
 
 
@@ -172,7 +174,7 @@ def main():
     ims = np.concatenate([np.load(f)["image"] for f in sh]) if tb.ft else None
     box = {k: np.concatenate([np.load(f)[k] for f in sh]) for k in ["bbox", "bbox_center", "focal_ratio"]}
     key = jax.random.PRNGKey(tb.a.seed + 5)
-    Rall, tall = [], []
+    Rall, tall, Eall = [], [], []
     n = len(obs.index) if not a.limit else min(a.limit, len(obs.index))
     t0 = time.time()
     for s in range(0, n, a.crops_per_batch):
@@ -181,6 +183,8 @@ def main():
       rt = sample(k2, prior(jax.random.split(k1, len(rows))), None if tb.ft else jnp.asarray(obs.tokens[rows], jnp.float32),
                   jnp.asarray(FG_FLOOR + obs.fg[rows]), jnp.asarray(meta[rows]), None if ims is None else jnp.asarray(ims[rows], jnp.float32))
       Rg, tg = poses(rt)
+      z_obs = sample.encode(jnp.asarray(ims[rows], jnp.float32))[0] if tb.ft else jnp.asarray(obs.tokens[rows], jnp.float32)
+      Eall.append(np.asarray(sample.energy(rt, z_obs, jnp.asarray(FG_FLOOR + obs.fg[rows]), jnp.asarray(meta[rows])), np.float64))
       Rall.append(np.asarray(Rg, np.float64))
       tall.append(np.asarray(tg, np.float64))
       if (s // a.crops_per_batch) % 20 == 0:
@@ -189,7 +193,8 @@ def main():
     rep = lambda x: np.repeat(x[:n], S, 0)
     t_est = recover_translation(t_sc, rep(box["bbox"]), rep(box["bbox_center"]), rep(box["focal_ratio"]), tb.a.tran_scale, tb.a.tran_offset)
     R_est = allo_to_ego(R_allo, t_est)
-    np.savez(os.path.join(a.out, f"{split}_samples.npz"), index=obs.index[:n].astype(np.int64), R=R_est.reshape(n, S, 3, 3), t=t_est.reshape(n, S, 3))
+    np.savez(os.path.join(a.out, f"{split}_samples.npz"), index=obs.index[:n].astype(np.int64), R=R_est.reshape(n, S, 3, 3), t=t_est.reshape(n, S, 3),
+             E=np.concatenate(Eall).reshape(n, S))
     rr = sample.stats["resample_rate"]
     info[split] = {"n": int(n), "seconds": time.time() - t0, "mean_resample_rate": float(np.mean(rr)) if rr else 0.0}
     rr.clear()

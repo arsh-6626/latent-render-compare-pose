@@ -1,0 +1,18 @@
+WARNING:absl:Tensorflow library not found, tensorflow.io.gfile operations will use native shim calls. GCS paths (i.e. 'gs://...') cannot be accessed.
+perturbing
+extract dinov2
+extract dinov2_ft
+extract r34_imagenet_l3
+extract r34_imagenet_l4
+extract r34_liepose_l3
+extract r34_liepose_l4
+dinov2_L4 {"grid": 8, "between": 0.0009, "rot_0.5": 0.0314, "rot_1.0": 0.0421, "rot_2.0": 0.0657, "rot_5.0": 0.1368, "rot_10.0": 0.245, "zoom_1.01": 0.0349, "zoom_1.02": 0.0491, "zoom_1.05": 0.0968, "zoom_1.1": 0.1721, "shift_1": 0.0294, "shift_2": 0.0524, "shift_4": 0.1041, "shift_8": 0.1938}
+dinov2_L6 {"grid": 8, "between": 0.0036, "rot_0.5": 0.023, "rot_1.0": 0.0321, "rot_2.0": 0.0487, "rot_5.0": 0.0997, "rot_10.0": 0.1879, "zoom_1.01": 0.0253, "zoom_1.02": 0.0338, "zoom_1.05": 0.0621, "zoom_1.1": 0.1131, "shift_1": 0.0202, "shift_2": 0.0346, "shift_4": 0.0669, "shift_8": 0.1317}
+dinov2_L8 {"grid": 8, "between": 0.0105, "rot_0.5": 0.0274, "rot_1.0": 0.0405, "rot_2.0": 0.062, "rot_5.0": 0.1152, "rot_10.0": 0.2018, "zoom_1.01": 0.0273, "zoom_1.02": 0.0375, "zoom_1.05": 0.0659, "zoom_1.1": 0.1152, "shift_1": 0.023, "shift_2": 0.0381, "shift_4": 0.0716, "shift_8": 0.1342}
+dinov2_L12 {"grid": 8, "between": 6.0462, "rot_0.5": 0.0293, "rot_1.0": 0.0459, "rot_2.0": 0.068, "rot_5.0": 0.1145, "rot_10.0": 0.174, "zoom_1.01": 0.0277, "zoom_1.02": 0.0371, "zoom_1.05": 0.0607, "zoom_1.1": 0.0938, "shift_1": 0.023, "shift_2": 0.0363, "shift_4": 0.0625, "shift_8": 0.1006}
+dinov2ft_L8 {"grid": 8, "between": 0.0271, "rot_0.5": 0.0151, "rot_1.0": 0.0227, "rot_2.0": 0.0372, "rot_5.0": 0.0942, "rot_10.0": 0.2006, "zoom_1.01": 0.0165, "zoom_1.02": 0.0242, "zoom_1.05": 0.0466, "zoom_1.1": 0.0886, "shift_1": 0.0138, "shift_2": 0.0249, "shift_4": 0.0512, "shift_8": 0.1103}
+dinov2ft_L12 {"grid": 8, "between": 2.7176, "rot_0.5": 0.0112, "rot_1.0": 0.0153, "rot_2.0": 0.0241, "rot_5.0": 0.055, "rot_10.0": 0.1209, "zoom_1.01": 0.0124, "zoom_1.02": 0.0166, "zoom_1.05": 0.0293, "zoom_1.1": 0.0521, "shift_1": 0.0085, "shift_2": 0.0154, "shift_4": 0.0296, "shift_8": 0.0633}
+r34_imagenet_l3 {"grid": 8, "between": 0.0599, "rot_0.5": 0.0338, "rot_1.0": 0.046, "rot_2.0": 0.0585, "rot_5.0": 0.1156, "rot_10.0": 0.2422, "zoom_1.01": 0.0422, "zoom_1.02": 0.0508, "zoom_1.05": 0.0835, "zoom_1.1": 0.1549, "shift_1": 0.0254, "shift_2": 0.0385, "shift_4": 0.0654, "shift_8": 0.1552}
+r34_imagenet_l4 {"grid": 7, "between": 6.6282, "rot_0.5": 0.0712, "rot_1.0": 0.0854, "rot_2.0": 0.1006, "rot_5.0": 0.1515, "rot_10.0": 0.2467, "zoom_1.01": 0.0764, "zoom_1.02": 0.0863, "zoom_1.05": 0.1132, "zoom_1.1": 0.1489, "shift_1": 0.037, "shift_2": 0.0481, "shift_4": 0.0539, "shift_8": 0.0607}
+r34_liepose_l3 {"grid": 8, "between": 0.0936, "rot_0.5": 0.027, "rot_1.0": 0.0337, "rot_2.0": 0.0465, "rot_5.0": 0.1156, "rot_10.0": 0.2847, "zoom_1.01": 0.0345, "zoom_1.02": 0.0338, "zoom_1.05": 0.0507, "zoom_1.1": 0.0906, "shift_1": 0.0102, "shift_2": 0.019, "shift_4": 0.0443, "shift_8": 0.1246}
+r34_liepose_l4 {"grid": 7, "between": 0.1829, "rot_0.5": 0.0176, "rot_1.0": 0.0214, "rot_2.0": 0.0245, "rot_5.0": 0.0586, "rot_10.0": 0.1536, "zoom_1.01": 0.0209, "zoom_1.02": 0.0204, "zoom_1.05": 0.0264, "zoom_1.1": 0.0416, "shift_1": 0.0049, "shift_2": 0.009, "shift_4": 0.0211, "shift_8": 0.0593}

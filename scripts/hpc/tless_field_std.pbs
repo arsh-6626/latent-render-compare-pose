@@ -49,10 +49,10 @@ if [ "$STAGE" = field ]; then
 else
   S=${STEPS:-100000}
   PA=$([ -n "$PROC" ] && echo "process=[$PROC]" || true); PL=$([ -n "$PROC" ] && echo "_$PROC" || true)  # unset: the diffusion runs as before
-  PL=$PL${TAG:+_$TAG}  # DEN_ARGS: extra options (e.g. fg_uniform=[True]), TAG: log-name suffix
+  PL=$PL${TAG:+_$TAG}  # DEN_ARGS: extra options (e.g. fg_uniform=[True]), TAG: log-name suffix; several DEN_ARGS joined by +
   $P/env/liepose/bin/python -u -m liepose.exp.cmp.tless_field_dit --root_path $W/experiments/tless-field "den_mode=[$MODE]" \
     "field_dir=[$W/probe/$FIELD]" "train_steps=[$S]" "seed=[${SEED:-42}]" "num_workers=[${NW:-8}]" \
-    "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" "ckpt_steps=[${CK:-25000}]" $PA ${DEN_ARGS} \
+    "batch_size=[${BS:-32}]" "n_slices=[${NS:-16}]" "grad_accum=[${GA:-1}]" "ckpt_steps=[${CK:-25000}]" $PA ${DEN_ARGS//+/ } \
     >> $W/logs/tless_field_dit_${MODE}_${S}_s${SEED:-42}${PL}.log 2>&1
 fi
 echo "TLESS_FIELD_DONE $STAGE $?"
