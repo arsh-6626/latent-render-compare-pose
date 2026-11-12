@@ -111,6 +111,13 @@ image encoder for its own features. In this variant a frozen DINOv2 copy gives $
 with a $10\times$ lower learning rate, provides its $16\times16$ tokens; each $2\times2$ cell is concatenated, projected and added to $x_p$.
 The control with a trained encoder is built the same way. These rows are marked $^\ddagger$.
 
+\paragraph{Joint training.}
+With a frozen comparison space, only the denoiser adapts to the field. In the joint variant the comparison space follows the trained
+encoder: $\zobs$ comes from an exponential moving average (decay $0.999$) of the trained DINOv2 copy instead of the frozen one, and the
+field is trained together with the denoiser, initialised from its fitted parameters. The field keeps its fitting loss
+(\cref{sec:wmtrain}) at the ground-truth pose, with weight 1, now against the EMA tokens with a stop-gradient. The denoiser's loss
+does not reach the field, which is rendered with a stop-gradient inside every step as before. These rows are marked $^\star$.
+
 \subsection{Selecting among samples}
 \label{sec:select}
 A diffusion sampler returns one pose per run, and independent runs can land in different modes, \eg flipped configurations of a

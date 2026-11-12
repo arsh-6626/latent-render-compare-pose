@@ -40,8 +40,10 @@ number of training images. Published numbers are rounded to one decimal. $^\dagg
 computed by us. The GDRNPP numbers that~\cite{hsiao2024liepose} compares with are GDRNPP's leaderboard entry with one model per
 dataset and detected boxes (67.6 / 75.1 / 90.2), not a ground-truth-crop result. Published rows train on PBR and
 real images; $^\S$per-metric recalls from the BOP leaderboard~\cite{bopleaderboard}, as the papers report AR only (GDRNPP) or no BOP
-numbers (ZebraPose). $^\ddagger$Encoder trained (a frozen copy gives the comparison space). Results with the retrieval-referenced
-world model are in \cref{tab:supp-ret-bop}. We do not train LiePose on YCB-V (--).}
+numbers (ZebraPose). $^\ddagger$Encoder trained (a frozen copy gives the comparison space). $^\star$Encoder, field and denoiser trained jointly: the field
+is fitted together with the denoiser against an EMA copy of the trained encoder (\cref{sec:den}). Detector rows use GDRNPP's default
+detections~\cite{liu2025gdrnpp} at test time, as BOP prescribes, and visible boxes in training. Results with the retrieval-referenced
+world model are in \cref{tab:supp-ret-bop}. We do not train LiePose on YCB-V (--). Empty cells: still running.}
 \label{tab:bop}
 \small
 \setlength{\tabcolsep}{4.2pt}
@@ -65,7 +67,7 @@ LiePose~\cite{hsiao2024liepose}     & ResNet-34 & GT & 1 & 56.9 & 60.2 & 93.2 & 
 LiePose (our training)              & ResNet-34 & GT & 1 & 63.1 & 65.7 & 92.3 & 73.7 & -- & -- & -- & -- \\ % live weights (tab:supp-ema); logs/tless_test/liepose_se3_400k_noema
 Control (no world model)            & DINOv2-S  & GT & 1 & 30.3 & 33.7 & 77.9 & 47.3 & 48.4 & 51.4 & 64.1 & 54.6 \\ % dtu001 experiments/tless-field/train_steps=400000+seed=42+den_mode=field_nowm+field=tl_field_v1/test_400000/scores_bop19.json AR 0.4730, EMA weights, 6815 crops, eval 20/20, VSD renderer vispy (jobs 1126660 + 1128017); EMA vs live (job 1128378, 50 held-out batches): loss 1.647 vs 1.691, EMA kept
 \method                             & DINOv2-S  & GT & 1 & 68.8 & 69.5 & 88.5 & 75.6 & 78.0 & 76.5 & 81.9 & 78.8 \\ % dtu001 experiments/{tless-field/...field_full_lat+field=tl_field_v1,ycbv-field/...field_full_lat+field=yc_field_v2}/test_400000/evaluation_summary.txt Avg 88.51/69.51/68.79 (T-LESS), 81.90/76.50/77.96 (YCB-V); YCB-V control field_nowm+field=yc_field_v2 64.07/51.39/48.41; EMA weights (EMA vs live check pending for these three)
-\method + selection                 & DINOv2-S  & GT & $N$ & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\
+\quad + consensus                   & DINOv2-S  & GT & 16 & 71.2 & 72.2 & 91.3 & 78.2 & 80.8 & 79.6 & 85.5 & 82.0 \\ % dtu001 {tless,ycbv}-field/...field_full_lat.../test_400000_sel16/consensus_n16 scores_bop19.json (run_select; its n1 = 75.7 / 79.1)
 \midrule
 \multicolumn{12}{@{}l}{\emph{Trained by us, ground-truth crops, 100k $\times$ 32 (an eighth of the training images, 16 noisy poses)}} \\
 Control (no world model)            & DINOv2-S  & GT & 1 & 21.5 & 24.9 & 75.2 & 40.5 & 40.1 & 44.2 & 61.6 & 48.6 \\ % dtu001 tless-field/...field_nowm+field=tl_field_v1/test_100000/evaluation_summary.txt Avg(30)
@@ -73,8 +75,15 @@ Control (no world model)            & DINOv2-S  & GT & 1 & 21.5 & 24.9 & 75.2 & 
 % YCB-V 100k rows: dtu001 experiments/ycbv-field/train_steps=100000+seed=42+den_mode={field_full_lat,field_nowm}+field=yc_field_v2/test_100000
 % scores_bop19.json (PBR+real, ycbv_tokens_pr; 4125 crops = the 4123 BOP19 targets + 2 non-target obj-4 instances, scene 50 im 640/653,
 % ignored by the BOP toolkit; VSD renderer vispy): AR 0.7845 / 0.4863
-Control, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % field_nowm_ft: stopped before its test
-\method, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % field_full_lat_ft: stopped before its test
+Control, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & 33.6 & 38.1 & 84.8 & 52.2 & 63.9 & 66.6 & 78.2 & 69.6 \\ % field_nowm_ft: T-LESS local larp_abl test_100000 (resumed from 20k after the 11-10 outage); YCB-V dtu001 ycbv-field/...field_nowm_ft+field=yc_field_v2/test_100000
+\method, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & 71.2 & 69.3 & 85.4 & 75.3 & 85.7 & 83.4 & 87.1 & 85.4 \\ % field_full_lat_ft: T-LESS local larp_abl test_100000; YCB-V dtu001 ...field_full_lat_ft+field=yc_field_v2/test_100000
+\method, joint                      & DINOv2-S$^\star$ & GT & 1 & 78.1 & 77.3 & 91.1 & 82.2 & \pend & \pend & \pend & \pend \\ % A1: dtu001 tless-field/...field_full_lat_ft+field=tl_field_v1+joint=0.999/test_100000 (6815 crops); YCB-V: local larp_jgt, running
+\midrule
+\multicolumn{12}{@{}l}{\emph{Trained by us, detector crops (BOP protocol, default detections), 400k $\times$ 64}} \\
+Control (no world model)            & DINOv2-S  & Det & 1 & 13.9 & 17.2 & 62.0 & 31.1 & 23.9 & 29.9 & 44.7 & 32.8 \\ % T-LESS dtu004 tless-field/...field_nowm+field=tl_field_det/test_400000; YCB-V Yash det/.../field_nowm+field=yc_field_det/test_400000
+\method                             & DINOv2-S  & Det & 1 & 39.0 & 43.8 & 77.2 & 53.3 & 45.0 & 53.2 & 66.3 & 54.8 \\ % dtu004 {tless,ycbv}-field/...field_full_lat+field={tl,yc}_field_det/test_400000
+Control, trained encoder            & DINOv2-S$^\ddagger$ & Det & 1 & 63.3 & 68.0 & 90.1 & 73.8 & 63.8 & 70.7 & 77.6 & 70.7 \\ % dtu004 tless ...field_nowm_ft+field=tl_field_det; dtu001 ycbv ...field_nowm_ft+field=yc_field_det (test_400000)
+\method, trained encoder            & DINOv2-S$^\ddagger$ & Det & 1 & \pend & \pend & \pend & \pend & \pend & \pend & \pend & \pend \\ % tft4-lat / yft4-lat (HPC), running
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -119,7 +128,7 @@ Control (no world model)                     & GT  & 1 & 0.338 & 45.5 & 0.854 & 
 \quad + consensus                            & GT  & 16 & 0.315 & 41.3 & 0.776 & 0.284 & 36.7 & 0.688 \\ % EMA; field_nowm 400k eval_400000_n16/consensus_{lightbox,sunlamp}.json (test_branch.py K=1, 16 chains)
 \method                                      & GT  & 1 & 0.268 & 35.8 & 0.672 & 0.241 & 35.8 & 0.664 \\ % EMA (tab:supp-ema); dtu004 speedplus-field field_full_lat 400k test_400000/esa.json
 \quad + consensus                            & GT  & 16 & 0.245 & 29.9 & 0.565 & 0.222 & 30.5 & 0.568 \\ % EMA; field_full_lat 400k eval_400000_n16/consensus_{lightbox,sunlamp}.json
-\method + selection                          & GT  & $N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
+\quad + energy                               & GT  & 16 & \pend & \pend & 0.653 & \pend & \pend & 0.658 \\ % lowest field energy among the same 16 samples (eval_400000_n16 samples.npz); e_t / e_q not yet extracted
 \midrule
 \multicolumn{9}{@{}l}{\emph{Trained by us, 100k $\times$ 32 (an eighth of the training images, 16 noisy poses)}} \\
 Control (no world model)                     & GT  & 1 & 0.358 & 43.8 & 0.827 & 0.308 & 39.6 & 0.743 \\ % results/speedplus_field_dit/frozen_100k_full_nowm.txt (field_nowm)
@@ -130,7 +139,7 @@ Control (no world model)                     & GT  & 1 & \pend & \pend & \pend &
 \method                                      & GT  & 1 & 0.155 & 22.1 & 0.412 & 0.219 & 25.4 & 0.480 \\ % results/speedplus_field_dit/ft_100k_full_lat_ft_esa.json (dtu004 speedplus-field-ft field_full_lat_ft test_100000)
 \quad + consensus                            & GT  & 16 & 0.129 & 15.7 & 0.296 & 0.195 & 19.4 & 0.371 \\ % results/speedplus_branch/test/plain_{lightbox,sunlamp}.json (test_branch.py K=1, 16 chains, seed+5)
 \midrule
-\color{gray}Oracle selection among the same $N$ (diagnostic) & \color{gray}GT & \color{gray}$N$ & \pend & \pend & \pend & \pend & \pend & \pend \\
+\color{gray}Oracle among the same 16 (\method, 400k; diagnostic) & \color{gray}GT & \color{gray}16 & \pend & \pend & \color{gray}0.358 & \pend & \pend & \color{gray}0.356 \\ % same samples, closest to GT
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -141,9 +150,11 @@ Control (no world model)                     & GT  & 1 & \pend & \pend & \pend &
 
 \paragraph{T-LESS and YCB-V.}
 \Cref{tab:bop} compares \method with LiePose trained by us under identical crops, data and training budget, with the no-world-model
-control, and with published methods. \TODO{describe once the rows are filled: (i) \method vs control (the effect of the comparison),
-(ii) \method vs LiePose (ours), (iii) where the difference comes from, using the rotation and translation accuracies of
-\cref{tab:supp-tless-rt}, (iv) the effect of selection. Do not compare GT-crop rows with detector rows.}
+control, and with published methods. Rows with ground-truth crops follow LiePose's protocol and are compared only with each other;
+detector rows follow the BOP protocol.
+At the matched budget with ground-truth crops, \method reaches 75.6 AR on T-LESS against 47.3 for the control and 73.7 for LiePose
+trained by us, and 78.8 against 54.6 for the control on YCB-V. Choosing one of 16 samples by consensus adds 2.5 and 2.9 AR over the first of the same samples (75.7 to
+78.2 and 79.1 to 82.0).
 At 100k $\times$ 32, \method raises AR on T-LESS from 40.5 to 72.4 over the control, with all three recalls higher
 (\cref{tab:bop}). The gain is largest in translation, where the recall at 2\,cm rises from 26.8 to 80.3, and the rotation recall at
 $5^\circ$ rises from 45.7 to 71.6 (\cref{tab:supp-tless-rt}). With an eighth of the training images, \method is 1.3 AR below LiePose
@@ -152,14 +163,27 @@ retrieval world model of \cref{sec:supp-ret} raises AR from 41.2 to 54.7 over it
 On YCB-V at the same budget, \method raises AR from 48.6 to 78.5 over the control, again with all three recalls higher; the largest
 gains are in the surface-distance recalls (VSD 40.1 to 78.0, MSSD 44.2 to 75.8).
 
+\paragraph{Trained encoder and joint training.}
+Training the encoder raises both models, and the world model still helps: at 100k $\times$ 32, the control reaches 52.2 AR on T-LESS
+and 69.6 on YCB-V, and \method 75.3 and 85.4. Training the field jointly with the denoiser (\cref{sec:den}) raises \method on T-LESS to
+82.2 AR, 12.1 above LiePose's published result and 8.5 above LiePose trained by us with eight times the training images; all three recalls
+rise (VSD 71.2 to 78.1, MSSD 69.3 to 77.3, MSPD 85.4 to 91.1). The joint YCB-V run is not finished.
+
+\paragraph{Detector crops.}
+With GDRNPP's default detections, the gap between \method and the control remains large with a frozen encoder (T-LESS 31.1 to 53.3,
+YCB-V 32.8 to 54.8), but both are well below the control with a trained encoder (73.8 and 70.7). The frozen comparison space thus
+transfers to detector crops, while the frozen observation features limit both models. The trained-encoder \method on detector crops is
+still training. None of our detector rows reaches GDRNPP (78.6 / 82.5).
+
 \paragraph{SPEED+.}
 \Cref{tab:speedplus} reports the full lightbox and sunlamp sets. At 100k $\times$ 32, \method lowers the score from 0.827 to
 0.705 on lightbox and from 0.743 to 0.643 on sunlamp relative to the control, with lower rotation and translation errors on both.
 At the matched budget (400k $\times$ 64, frozen DINOv2) the gap to the control is similar: 0.854 to 0.672 on lightbox and 0.793 to 0.664 on sunlamp, and 0.776 to 0.565 and 0.688 to 0.568 with 16-sample consensus. Neither field model improves with eight times the training images (the control is slightly worse than at 100k $\times$ 32), and both are far from LiePose at the full budget (0.234 / 0.289; 0.165 / 0.223 with consensus). With a trained encoder (\cref{sec:den}) and 100k steps of batch 64,
 \method reaches 0.412 / 0.480. This run differs from the rows above in both the encoder and the batch, and its control with a trained
-encoder has not been evaluated, so the two effects are not separated. \TODO{describe the matched-budget rows, the trained encoder and selection,
-and the gap to the oracle as an upper bound on what selection could reach. State explicitly that the SPEC2021 entries used the
-unlabeled test-domain images and are not under our protocol.}
+encoder has not been evaluated, so the two effects are not separated. Among the same 16 samples of the matched-budget \method,
+the lowest-energy one scores 0.653 / 0.658, close to a single sample and well behind consensus; the oracle sample scores 0.358 /
+0.356, an upper bound on what selection could reach (\cref{sec:ablation}). The SPEC2021 entries adapt to the unlabeled lightbox and
+sunlamp images and are not under our protocol.
 
 % ------------------------------------------------------------------------------------------------------------------------------
 \subsection{Ablations}
@@ -207,7 +231,8 @@ to 72.4; dropping the raw channels lowers it to 62.7; statistics alone reach 42.
 \centering
 \caption{\textbf{Selection among $N$ samples} (SPEED+ lightbox $S$, $\downarrow$; T-LESS AR, $\uparrow$), \method at the matched budget.
 Energy: \cref{eq:energy}; consensus: \cref{sec:select}; oracle: the sample closest to the ground truth in rotation (diagnostic).
-Selection with the retrieval world model is in \cref{tab:supp-ret-select}. \TODO{fill.}}
+$N=1$ is the first sample for every rule. Frozen DINOv2, 400k $\times$ 64, GT crops (T-LESS) or GT keypoint box (SPEED+). Selection
+with the retrieval world model is in \cref{tab:supp-ret-select}.}
 \label{tab:select}
 \small
 \setlength{\tabcolsep}{3.5pt}
@@ -217,16 +242,20 @@ Selection with the retrieval world model is in \cref{tab:supp-ret-select}. \TODO
 \cmidrule(lr){2-4}\cmidrule(lr){5-7}
 $N$ & consensus & energy & \color{gray}oracle & consensus & energy & \color{gray}oracle \\
 \midrule
-1  & \pend & \pend & \pend & \pend & \pend & \pend \\
-4  & \pend & \pend & \pend & \pend & \pend & \pend \\
-16 & \pend & \pend & \pend & \pend & \pend & \pend \\
+1  & 0.666 & 0.666 & \color{gray}0.666 & 75.7 & 75.7 & \color{gray}75.7 \\ % SPEED+ dtu004 speedplus-field field_full_lat eval_400000_n16; T-LESS dtu001 test_400000_sel16/n1
+4  & 0.565 & 0.583 & \color{gray}0.446 & 78.0 & 78.2 & \color{gray}79.4 \\
+16 & 0.565 & 0.653 & \color{gray}0.358 & 78.2 & 78.2 & \color{gray}80.5 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \paragraph{Selection.}
 \Cref{tab:select} varies the number of samples. The oracle column shows how often a good sample exists among the $N$, and therefore how
-much any selection rule could gain; the energy column shows how much of this the field recovers. \TODO{describe.}
+much any selection rule could gain; the energy column shows how much of this the field recovers. On T-LESS, consensus and the energy
+recover most of the gain already at $N=4$ (78.0 and 78.2 from 75.7), against 79.4 for the oracle; at $N=16$ both reach 78.2, 2.3 below
+the oracle. On SPEED+ consensus lowers the score from 0.666 to 0.565 at $N=4$ and does not improve further, while the energy helps at
+$N=4$ (0.583) but less at $N=16$ (0.653): as more samples are added, the lowest-energy one is more often a wrong mode the field cannot
+tell apart. The oracle (0.358 at $N=16$) shows that most images have a good sample that neither rule finds.
 
 % ------------------------------------------------------------------------------------------------------------------------------
 \subsection{Analysis}
