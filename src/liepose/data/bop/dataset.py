@@ -112,8 +112,11 @@ def use_detections(dataset, det_path, targets_path=None):
     for o in objs:
       k = targets[(s, i, o)] if targets is not None else len([a for a in rec["annotations"] if a["object_id"] == o])
       for d in sorted(dets.get((s, i, o), []), key=lambda d: -d["score"])[:k]:
-        annos.append({"category_id": dataset.objid2catid[o], "object_id": o, "bbox": list(d["bbox"]), "bbox_est": list(d["bbox"]),
-                      "bbox_mode": "xywh", "score": float(d["score"]), "time": float(d.get("time", 0.0))})
+        a = {"category_id": dataset.objid2catid[o], "object_id": o, "bbox": list(d["bbox"]), "bbox_est": list(d["bbox"]),
+             "bbox_mode": "xywh", "score": float(d["score"]), "time": float(d.get("time", 0.0))}
+        if "segmentation" in d and os.environ.get("BOP_DET_MASK", "1") != "0":
+          a["segmentation"] = d["segmentation"]  # the detector's instance mask (BOP default segmentations), not the ground truth's
+        annos.append(a)
       n_obj += k
     n_det += len(annos)
     rec["annotations"] = annos

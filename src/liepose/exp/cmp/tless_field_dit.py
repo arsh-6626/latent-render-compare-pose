@@ -281,20 +281,24 @@ class Testbed(tless_dit.Testbed):
     """tless_dit.run_test with the crop meta (the test cache's rows, or the batch's for *_ft)"""
     self.opt, self.opt_path = opt, opt_path
     os.makedirs(opt_path, exist_ok=True)
-    obs = TokenSplit(self.cache, "test")
+    # *_ft with detections: crops, object ids and masks come from the dataset (the detections); no token cache is needed
+    no_cache = self.ft and bool(os.environ.get("BOP_DET"))
+    obs = None if no_cache else TokenSplit(self.cache, "test")
     test_meta = None if self.ft else np.load(os.path.join(self.cache, "test_crop_meta.npy")).astype(np.float32)
-    row_of = {int(i): r for r, i in enumerate(obs.index)}
-    assert len(row_of) == len(obs.index)
+    row_of = {} if no_cache else {int(i): r for r, i in enumerate(obs.index)}
     dataset = self.create_test_dataset()
-    assert len(dataset.dataset) == len(obs.index), (len(dataset.dataset), len(obs.index))
+    if not no_cache:
+      assert len(row_of) == len(obs.index)
+      assert len(dataset.dataset) == len(obs.index), (len(dataset.dataset), len(obs.index))
     evaluator = self.create_test_evaluator(dataset)
     lm, Lie = self.lie_metrics, self.Lie
     prior = jax.jit(jax.vmap(lambda k: lm.as_repr(Lie.sample_uniform(k), self.a.repr_type)))
     sample = self.create_sampler(opt.steps)
     key, n = jax.random.PRNGKey(self.a.seed + 2), 0
     for batch in tqdm(dataset, desc="Sample"):
-      rows = np.array([row_of[int(i)] for i in np.asarray(batch["index"])])
-      assert (obs.obj[rows] == np.asarray(batch["object_id"])).all(), "token cache misaligned with the test dataset"
+      obj_b = np.asarray(batch["object_id"])
+      rows = np.arange(len(obj_b)) if no_cache else np.array([row_of[int(i)] for i in np.asarray(batch["index"])])
+      assert no_cache or (obs.obj[rows] == obj_b).all(), "token cache misaligned with the test dataset"
       key, k1, k2 = jax.random.split(key, 3)
       t0 = time.time()
       if self.ft:  # fg_uniform (or detection crops, which carry no mask): unmasked images, uniform weights
@@ -303,7 +307,7 @@ class Testbed(tless_dit.Testbed):
           np.asarray(batch["mask"], np.float32)
         image = jnp.asarray(img * mask)
         meta = crop_meta10({k: np.asarray(batch[k]) for k in ("bbox", "bbox_center", "dzi_size", "focal_ratio", "cam")})
-        rt = sample(k2, prior(jax.random.split(k1, len(rows))), obs.obj[rows], None, FG_FLOOR + mask_fg(jnp.asarray(mask[..., 0])),
+        rt = sample(k2, prior(jax.random.split(k1, len(rows))), obj_b, None, FG_FLOOR + mask_fg(jnp.asarray(mask[..., 0])),
                     jnp.asarray(meta), image)
       else:
         fg = np.ones_like(obs.fg[rows]) if self.a.fg_uniform else obs.fg[rows]
@@ -338,13 +342,15 @@ class Testbed(tless_dit.Testbed):
     from liepose.exp.jepa_probe.probe_tless import load_symmetries
     from liepose.data.bop.evaluator import wxyz_to_xyzw
     self.opt = opt
-    obs = TokenSplit(self.cache, "test")
+    no_cache = self.ft and bool(os.environ.get("BOP_DET"))  # as run_test
+    obs = None if no_cache else TokenSplit(self.cache, "test")
     test_meta = None if self.ft else np.load(os.path.join(self.cache, "test_crop_meta.npy")).astype(np.float32)
-    row_of = {int(i): r for r, i in enumerate(obs.index)}
+    row_of = {} if no_cache else {int(i): r for r, i in enumerate(obs.index)}
     dataset = self.create_test_dataset()
-    assert len(dataset.dataset) == len(obs.index), (len(dataset.dataset), len(obs.index))
+    assert no_cache or len(dataset.dataset) == len(obs.index), (len(dataset.dataset), len(obs.index))
     Ns = tuple(N for N in Ns if N <= S)
-    names = ["n1"] + [f"{r}_n{N}" for N in Ns if N > 1 for r in ("consensus", "energy", "oracle")]
+    rules = ("consensus", "energy") if no_cache else ("consensus", "energy", "oracle")  # detections: no ground truth per crop
+    names = ["n1"] + [f"{r}_n{N}" for N in Ns if N > 1 for r in rules]
     if depth_grid:
       names.append("n1_dz")
       dz = np.linspace(*depth_grid[:2], int(depth_grid[2])).astype(np.float32)
@@ -383,13 +389,14 @@ class Testbed(tless_dit.Testbed):
     key, n = jax.random.PRNGKey(self.a.seed + 2), 0
     out_idx, out_pose, out_e, out_dz = [], [], [], []
     for batch in tqdm(dataset, desc="Select"):
-      rows = np.array([row_of[int(i)] for i in np.asarray(batch["index"])])
-      assert (obs.obj[rows] == np.asarray(batch["object_id"])).all(), "token cache misaligned with the test dataset"
+      obj_b = np.asarray(batch["object_id"])
+      rows = np.arange(len(obj_b)) if no_cache else np.array([row_of[int(i)] for i in np.asarray(batch["index"])])
+      assert no_cache or (obs.obj[rows] == obj_b).all(), "token cache misaligned with the test dataset"
       B = len(rows)
       rr = np.repeat(rows, S)  # crop-major: the S chains of a crop are consecutive
       key, k1, k2 = jax.random.split(key, 3)
       t0 = time.time()
-      obj = obs.obj[rr]
+      obj = np.repeat(obj_b, S)
       if self.ft:  # as run_test: the crop image (x visible mask) through the trained encoder, once per crop
         img = np.asarray(batch["image"], np.float32)
         mask = np.ones(img.shape[:3] + (1,), np.float32) if self.a.fg_uniform or "mask" not in batch else \
@@ -421,8 +428,11 @@ class Testbed(tless_dit.Testbed):
         Rs = np.stack([evals["n1"]._process_pose(inp, pose[b, s])[0] for s in range(S)])
         sy = syms[int(inp["object_id"])]
         G = sym_dist(Rs, Rs, sy)
-        gt = Rotation.from_quat(wxyz_to_xyzw(np.asarray(inp["rotation"], np.float64))).as_matrix()
-        err = sym_dist(gt[None], Rs, sy)[0]
+        if no_cache:  # detections: a crop has no ground-truth pose (a missed or spurious detection); the oracle uses none
+          err = np.zeros(S)
+        else:
+          gt = Rotation.from_quat(wxyz_to_xyzw(np.asarray(inp["rotation"], np.float64))).as_matrix()
+          err = sym_dist(gt[None], Rs, sy)[0]
         pick = {"n1": 0}
         for N in Ns:
           if N == 1:
@@ -430,7 +440,8 @@ class Testbed(tless_dit.Testbed):
           g = G[:N, :N]
           pick[f"consensus_n{N}"] = int(((g < 10).sum(-1) - 1e-3 * g.mean(-1)).argmax())
           pick[f"energy_n{N}"] = int(e[b, :N].argmin())
-          pick[f"oracle_n{N}"] = int(err[:N].argmin())
+          if not no_cache:
+            pick[f"oracle_n{N}"] = int(err[:N].argmin())
         one = {k: (v[b:b + 1] if hasattr(v, "__len__") and len(v) == B else v) for k, v in batch.items()}
         if depth_grid:
           sel = pose_dz[b][None, None, None]
