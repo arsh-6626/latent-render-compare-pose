@@ -9,7 +9,7 @@ reconstruction. At every step the denoiser receives the observed tokens, the tok
 difference, and the field's latent. A control that removes only the rendered quantities, with the same denoiser, data and training
 budget, isolates the effect of the world model. With ground-truth crops, the world model raises BOP average recall from 47.3 to 75.6
 on T-LESS and from 54.6 to 78.8 on YCB-V, and \method exceeds LiePose trained with the same data and budget (73.7 on T-LESS).
-Training the field jointly with the denoiser and its encoder raises T-LESS to 82.2 with an eighth of the training images. With
+Training the field jointly with the denoiser and its encoder raises T-LESS to 82.2 with an eighth of the training images, and to 84.9 when one of 16 samples is chosen by consensus. With
 detector crops and a frozen encoder, the world model raises recall from 31.1 to 53.3 on T-LESS and from 32.8 to 54.8 on YCB-V. On the
 SPEED+ spacecraft benchmark it lowers the official score of the control from 0.854 to 0.672 (lightbox).
 \end{abstract}

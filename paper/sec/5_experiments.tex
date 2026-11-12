@@ -78,6 +78,7 @@ Control (no world model)            & DINOv2-S  & GT & 1 & 21.5 & 24.9 & 75.2 & 
 Control, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & 33.6 & 38.1 & 84.8 & 52.2 & 63.9 & 66.6 & 78.2 & 69.6 \\ % field_nowm_ft: T-LESS local larp_abl test_100000 (resumed from 20k after the 11-10 outage); YCB-V dtu001 ycbv-field/...field_nowm_ft+field=yc_field_v2/test_100000
 \method, trained encoder            & DINOv2-S$^\ddagger$ & GT & 1 & 71.2 & 69.3 & 85.4 & 75.3 & 85.7 & 83.4 & 87.1 & 85.4 \\ % field_full_lat_ft: T-LESS local larp_abl test_100000; YCB-V dtu001 ...field_full_lat_ft+field=yc_field_v2/test_100000
 \method, joint                      & DINOv2-S$^\star$ & GT & 1 & 78.1 & 77.3 & 91.1 & 82.2 & \pend & \pend & \pend & \pend \\ % A1: dtu001 tless-field/...field_full_lat_ft+field=tl_field_v1+joint=0.999/test_100000 (6815 crops); YCB-V: local larp_jgt, running
+\quad + consensus                   & DINOv2-S$^\star$ & GT & 16 & 80.8 & 80.4 & 93.4 & 84.9 & \pend & \pend & \pend & \pend \\ % Yash tjd/experiments/tless-field/...joint=0.999/test_100000_sel16/consensus_n16 scores_bop19.json (run_select; its n1 = 82.3)
 \midrule
 \multicolumn{12}{@{}l}{\emph{Trained by us, detector crops (BOP protocol, default detections), 400k $\times$ 64}} \\
 Control (no world model)            & DINOv2-S  & Det & 1 & 13.9 & 17.2 & 62.0 & 31.1 & 23.9 & 29.9 & 44.7 & 32.8 \\ % T-LESS dtu004 tless-field/...field_nowm+field=tl_field_det/test_400000; YCB-V Yash det/.../field_nowm+field=yc_field_det/test_400000
@@ -167,7 +168,8 @@ gains are in the surface-distance recalls (VSD 40.1 to 78.0, MSSD 44.2 to 75.8).
 Training the encoder raises both models, and the world model still helps: at 100k $\times$ 32, the control reaches 52.2 AR on T-LESS
 and 69.6 on YCB-V, and \method 75.3 and 85.4. Training the field jointly with the denoiser (\cref{sec:den}) raises \method on T-LESS to
 82.2 AR, 12.1 above LiePose's published result and 8.5 above LiePose trained by us with eight times the training images; all three recalls
-rise (VSD 71.2 to 78.1, MSSD 69.3 to 77.3, MSPD 85.4 to 91.1). The joint YCB-V run is not finished.
+rise (VSD 71.2 to 78.1, MSSD 69.3 to 77.3, MSPD 85.4 to 91.1). Choosing one of 16 samples by consensus raises it to 84.9 AR
+(82.3 for the first of the same samples). The joint YCB-V run is not finished.
 
 \paragraph{Detector crops.}
 With GDRNPP's default detections, the gap between \method and the control remains large with a frozen encoder (T-LESS 31.1 to 53.3,
@@ -256,6 +258,8 @@ recover most of the gain already at $N=4$ (78.0 and 78.2 from 75.7), against 79.
 the oracle. On SPEED+ consensus lowers the score from 0.666 to 0.565 at $N=4$ and does not improve further, while the energy helps at
 $N=4$ (0.583) but less at $N=16$ (0.653): as more samples are added, the lowest-energy one is more often a wrong mode the field cannot
 tell apart. The oracle (0.358 at $N=16$) shows that most images have a good sample that neither rule finds.
+The jointly trained T-LESS model behaves the same way: from 82.3 for one sample, consensus gives 84.3 and 84.9 at $N=4$ and 16, the energy
+84.8 and 84.6, and the oracle 87.3 and 89.0.
 
 % ------------------------------------------------------------------------------------------------------------------------------
 \subsection{Analysis}
