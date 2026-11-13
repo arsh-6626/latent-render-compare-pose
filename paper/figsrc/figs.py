@@ -501,7 +501,7 @@ def fig_population():
   """48 seeded crops x 8 chains: rotation and translation error and LaRC energy along the sampler, LaRC vs control"""
   P = np.load(f"{D}/population.npz")
   x = np.arange(1, 101)
-  fig, ax = plt.subplots(1, 4, figsize=(COL2, 1.7), gridspec_kw=dict(wspace=0.5))
+  fig, ax = plt.subplots(1, 4, figsize=(COL2, 1.7), gridspec_kw=dict(wspace=0.75))
   for nm, c, lab in (("ctrl", C["ctrl"], "control"), ("joint", C["larc"], "LaRC")):
     for a, key in ((ax[0], "rerr"), (ax[2], "terr")):
       v = P[f"{nm}_{key}"].transpose(1, 0, 2).reshape(100, -1)  # (step, crop*chain)
