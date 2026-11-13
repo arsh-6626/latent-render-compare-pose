@@ -450,8 +450,264 @@ def fig_summary():
   save(fig, "fig_summary")
 
 
+# ================================================================== second set (fig_data2.py, errors, samples)
+def fig_views():
+  """the world model imagines unseen views: rendered latent (PCA) and opacity on a turntable, one PCA basis per object"""
+  V = np.load(f"{D}/views.npz")
+  az = np.degrees(V["az"]).astype(int)
+  show = [0, 2, 4]  # three of the six objects (fixed order of fig_data)
+  fig = plt.figure(figsize=(COL2, 3.15))
+  gs = fig.add_gridspec(2 * len(show), len(az) + 1, hspace=0.05, wspace=0.04, width_ratios=[1.15] + [1] * len(az))
+  for i, ci in enumerate(show):
+    t = traj[ci]
+    zh = V[f"zh_{ci}"].astype(np.float32)[len(az):2 * len(az)]  # elevation 0
+    op = V[f"op_{ci}"][len(az):2 * len(az)]
+    col = pca_basis(np.concatenate([t["z_joint"]] + list(zh)))
+    a = fig.add_subplot(gs[2 * i:2 * i + 2, 0]); a.imshow(t["img"]); off(a)
+    a.set_title(f"object {t['obj']}" if i else f"observed (object {t['obj']})", fontsize=6.5)
+    for j in range(len(az)):
+      a = fig.add_subplot(gs[2 * i, j + 1]); tokimg(a, col(zh[j]))
+      if i == 0:
+        a.set_title(f"{az[j]}$^\\circ$", fontsize=6.5)
+      a = fig.add_subplot(gs[2 * i + 1, j + 1]); a.imshow(op[j].reshape(8, 8), cmap="gray", vmin=0, vmax=1); off(a)
+  fig.text(0.53, 0.995, r"field render $\hat{\mathbf{z}}$ (top) and opacity $\mathbf{o}$ (bottom), object turned about the vertical axis",
+           ha="center", va="bottom", fontsize=6.8)
+  save(fig, "fig_views")
+
+
+def fig_occlusion():
+  """occlusion: the render is amodal, the residual marks the occluder, the WM weights recover the visible part"""
+  O = np.load(f"{D}/occlusion.npz")
+  n = len(O["rows"])
+  cols = ["crop", "annotation mask", r"opacity $\mathbf{o}(g^\star)$", "residual", "WM weights", "WM wts, no mask"]
+  fig, ax = plt.subplots(n, len(cols), figsize=(COL2, 1.2 * n), gridspec_kw=dict(hspace=0.06, wspace=0.04))
+  up = lambda x: zoom(x.reshape(8, 8), 28, order=0)
+  for j in range(n):
+    img, m, sil = O[f"img_{j}"], O[f"mask_{j}"], O[f"sil_{j}"]
+    r = O[f"masked_res_{j}"]
+    a = ax[j, 0]; a.imshow(img); contour(a, sil, C["sym"], 0.8, "--"); off(a)
+    a.text(4, 16, f"obj {int(O[f'obj_{j}'])}, {100 * O['vf'][j]:.0f}% visible", color="w", fontsize=5.5)
+    a = ax[j, 1]; a.imshow(O[f"w_{j}"].reshape(8, 8), cmap="gray", vmin=0, vmax=1.05); off(a)
+    a = ax[j, 2]; a.imshow(O[f"masked_op_{j}"].reshape(8, 8), cmap="gray", vmin=0, vmax=1); off(a)
+    a = ax[j, 3]; a.imshow(r.reshape(8, 8), cmap=RES, vmin=0, vmax=np.percentile(r, 99)); off(a)
+    a = ax[j, 4]; a.imshow(O[f"masked_wm_{j}"].reshape(8, 8), cmap="gray", vmin=0, vmax=1.05); off(a)
+    a = ax[j, 5]; a.imshow(O[f"raw_wm_{j}"].reshape(8, 8), cmap="gray", vmin=0, vmax=1.05); off(a)
+  for i, c in enumerate(cols):
+    ax[0, i].set_title(c, fontsize=6.3)
+  save(fig, "fig_occlusion")
+
+
+def fig_population():
+  """48 seeded crops x 8 chains: rotation and translation error and LaRC energy along the sampler, LaRC vs control"""
+  P = np.load(f"{D}/population.npz")
+  x = np.arange(1, 101)
+  fig, ax = plt.subplots(1, 4, figsize=(COL2, 1.7), gridspec_kw=dict(wspace=0.5))
+  for nm, c, lab in (("ctrl", C["ctrl"], "control"), ("joint", C["larc"], "LaRC")):
+    for a, key in ((ax[0], "rerr"), (ax[2], "terr")):
+      v = P[f"{nm}_{key}"].transpose(1, 0, 2).reshape(100, -1)  # (step, crop*chain)
+      a.plot(x, np.median(v, 1), color=c, label=lab)
+      a.fill_between(x, np.percentile(v, 25, 1), np.percentile(v, 75, 1), color=c, alpha=0.18, lw=0)
+    re = P[f"{nm}_rerr"].transpose(1, 0, 2).reshape(100, -1)
+    ax[1].plot(x, (re < 10).mean(1) * 100, color=c, label=lab)
+    E = P[f"{nm}_E"].transpose(1, 0, 2).reshape(100, -1)
+    ax[3].plot(x, np.median(E, 1), color=c, label=lab)
+    print(nm, "final: rot<10", (re[-1] < 10).mean().round(3), "median terr", np.median(P[f"{nm}_terr"][:, -1]).round(4))
+  ax[0].set_yscale("log"); ax[0].set_ylabel("rotation error (deg)")
+  ax[1].set_ylabel(r"% chains $<10^\circ$"); ax[1].set_ylim(0, 100)
+  ax[2].set_yscale("log"); ax[2].set_ylabel("translation error (scaled)")
+  ax[3].set_ylabel(r"LaRC energy $E(g_t)$"); ax[3].set_yscale("log")
+  for a in ax:
+    a.set_xlabel("denoising step"); a.set_xticks([1, 50, 100])
+  ax[1].legend(loc="upper left")
+  save(fig, "fig_population")
+
+
+def fig_gallery(n=8):
+  """the first n population crops (seed order, no selection): GT (dashed), LaRC and control, chain 0"""
+  P = np.load(f"{D}/population.npz")
+  meta = np.load(f"{DD}/tless_tokens/test_meta.npz")
+  sh = np.load(f"{DD}/tless_crops/test/shard_0000.npz")
+  fig, ax = plt.subplots(2, n // 2 * 2 // 2 if False else n, figsize=(COL2, 2.0), gridspec_kw=dict(hspace=0.05, wspace=0.04))
+  from matplotlib.lines import Line2D
+  for j in range(n):
+    r, o, k = int(P["rows"][j]), int(P["obj"][j]), P["k"][j]
+    s_gt = silhouette(o, P["R_gt"][j], P["t_gt"][j], k)
+    for i, (nm, c) in enumerate((("joint", C["larc"]), ("ctrl", C["ctrl"]))):
+      a = ax[i, j]; a.imshow(sh["image"][r]); off(a); a.set_xlim(0, 223); a.set_ylim(223, 0)
+      contour(a, s_gt, C["gt"], 0.7, "--")
+      contour(a, silhouette(o, P[f"{nm}_R"][j, 0], P[f"{nm}_T"][j, 0], k), c, 1.0)
+      e = P[f"{nm}_rerr"][j, -1, 0]
+      a.text(6, 214, f"{e:.0f}$^\\circ$", color="w", fontsize=6, fontweight="bold")
+  ax[0, 0].text(-0.08, 0.5, "LaRC", rotation=90, transform=ax[0, 0].transAxes, va="center", ha="right")
+  ax[1, 0].text(-0.08, 0.5, "control", rotation=90, transform=ax[1, 0].transAxes, va="center", ha="right")
+  fig.legend([Line2D([], [], color="k", ls="--", lw=0.8), Line2D([], [], color=C["larc"]), Line2D([], [], color=C["ctrl"])],
+             ["ground truth", "LaRC", "control"], loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.04))
+  save(fig, "fig_gallery")
+
+
+def _gt_info():
+  out = {}
+  for f in glob.glob(f"{TL}/test_primesense/*/scene_gt_info.json"):
+    sc = int(f.split("/")[-2])
+    gi, gt = json.load(open(f)), json.load(open(f.replace("_info", "")))
+    for im, lst in gi.items():
+      for g, (a, b) in enumerate(zip(lst, gt[im])):
+        out[(sc, int(im), g)] = (a["visib_fract"], b["cam_t_m2c"][2])
+  return out
+
+
+def _inst_scores(name):
+  """per GT instance: (AR_MSSD + AR_MSPD) / 2 at the BOP19 thresholds, keyed (scene, im, gt_id)"""
+  th_s, th_p = np.arange(0.05, 0.51, 0.05), np.arange(5, 51, 5)
+  res = {}
+  for err, th, norm in (("mssd", th_s, True), ("mspd", th_p, False)):
+    for f in glob.glob(f"{ERR}/{name}/error={err}_ntop=-1/errors_*.json"):
+      sc = int(os.path.basename(f)[7:13])
+      for e in json.load(open(f)):
+        g, v = min(((int(g), min(v)) for g, v in e["errors"].items()), key=lambda x: x[1])
+        v = v / DIAM[e["obj_id"]] if norm else v
+        res.setdefault((sc, e["im_id"], g), []).append((v < th).mean())
+  return {k: np.mean(v) for k, v in res.items() if len(v) == 2}
+
+
+def fig_robustness():
+  """accuracy vs visible fraction and vs distance, all GT instances of the T-LESS test set (GT crops)"""
+  gi = _gt_info()
+  runs = [("joint_n1", "LaRC", C["larc"]), ("field_full_lat_ft", "LaRC w/o joint", C["larc2"]),
+          ("frozen_field_full_lat", "LaRC, frozen", C["frozen"]), ("field_nowm_ft", "control", C["ctrl"])]
+  vb = np.array([0.1, 0.3, 0.5, 0.7, 0.85, 0.95, 1.01])
+  fig, ax = plt.subplots(1, 2, figsize=(COL2 * 0.75, 1.7), gridspec_kw=dict(wspace=0.35))
+  dq = None
+  for name, lab, c in runs:
+    s = _inst_scores(name)
+    keys = [k for k in s if k in gi]
+    v = np.array([gi[k][0] for k in keys]); z = np.array([gi[k][1] for k in keys]); y = np.array([s[k] for k in keys]) * 100
+    if dq is None:
+      dq = np.percentile(z, [0, 20, 40, 60, 80, 100]); dq[-1] += 1
+      cnt = np.histogram(v, vb)[0]
+    xv = [(y[(v >= lo) & (v < hi)].mean()) for lo, hi in zip(vb[:-1], vb[1:])]
+    ax[0].plot(np.arange(len(xv)), xv, "-o", color=c, ms=2.5, label=lab)
+    xd = [(y[(z >= lo) & (z < hi)].mean()) for lo, hi in zip(dq[:-1], dq[1:])]
+    ax[1].plot(np.arange(len(xd)), xd, "-o", color=c, ms=2.5, label=lab)
+    print(name, "n", len(y), "by visib", np.round(xv, 1))
+  ax[0].set_xticks(range(len(vb) - 1)); ax[0].set_xticklabels([f"{a:.0%}".replace("%", "") for a in vb[:-1]], fontsize=5.5)
+  ax[0].set_xlabel("visible fraction (bin start, %)"); ax[0].set_ylabel("instance AR (%)"); ax[0].set_ylim(0, 100)
+  for i, c_ in enumerate(cnt):
+    ax[0].text(i, 2, str(c_), ha="center", fontsize=4.8, color="#777777")
+  ax[1].set_xticks(range(5)); ax[1].set_xticklabels([f"{dq[i] / 1000:.2f}" for i in range(5)], fontsize=5.5)
+  ax[1].set_xlabel("distance quintile (start, m)"); ax[1].set_ylim(0, 100)
+  ax[1].legend(loc="lower left", fontsize=5.4)
+  save(fig, "fig_robustness")
+
+
+def _samples():
+  s = np.load(f"{D}/a1_sel16_samples.npz")
+  meta = np.load(f"{DD}/tless_tokens/test_meta.npz")
+  row_of = {int(i): r for r, i in enumerate(meta["index"])}
+  rows = np.array([row_of[int(i)] for i in s["index"]])
+  R = wxyz(s["pose"][..., :4].reshape(-1, 4)).reshape(len(rows), 16, 3, 3)
+  return rows, meta["object_id"][rows], wxyz(meta["rotation_allo"][rows]), R, s
+
+
+def fig_spread():
+  """the 16 samples: spread across symmetric modes (raw angle) but on the true symmetry orbit (symmetry-aware)"""
+  rows, obj, Rg, R, _ = _samples()
+  cls = {}
+  for o in np.unique(obj):
+    v = info[str(o)]
+    cls[int(o)] = "continuous" if "symmetries_continuous" in v else ("discrete" if v.get("symmetries_discrete") else "none")
+  raw, sym, cl = [], [], []
+  for i in range(len(rows)):
+    M = np.einsum("aji,bjk->abik", R[i], R[i])
+    ang = np.degrees(np.arccos(np.clip((np.trace(M, axis1=-2, axis2=-1) - 1) / 2, -1, 1)))
+    raw.append(np.median(ang[np.triu_indices(16, 1)]))
+    sym.append(np.median(rot_err(Rg[i], R[i], int(obj[i]))))
+    cl.append(cls[int(obj[i])])
+  raw, sym, cl = np.array(raw), np.array(sym), np.array(cl)
+  fig, ax = plt.subplots(1, 2, figsize=(COL2 * 0.75, 1.6), gridspec_kw=dict(wspace=0.35))
+  bins = np.logspace(-1, np.log10(180), 40)
+  for k, c in (("none", C["larc"]), ("discrete", C["sym"]), ("continuous", C["ctrl"])):
+    m = cl == k
+    ax[0].hist(raw[m], bins, histtype="step", color=c, density=True, label=f"{k} ({m.sum()})")
+    ax[1].hist(sym[m], bins, histtype="step", color=c, density=True)
+    print(k, m.sum(), "median raw spread", np.median(raw[m]).round(1), "median sym err", np.median(sym[m]).round(2))
+  for a, t in ((ax[0], "pairwise angle between samples"), (ax[1], "symmetry-aware error to $g^\\star$")):
+    a.set_xscale("log"); a.set_xlabel(t + " (deg)"); a.set_yticks([])
+  ax[0].set_ylabel("density (median per crop)"); ax[0].legend(title="object symmetry", fontsize=5.4, title_fontsize=5.6, loc="upper left")
+  save(fig, "fig_spread")
+
+
+def fig_failures(n=6):
+  """where LaRC (consensus of 16) is wrong: error angles, whether a good sample existed, and examples"""
+  rows, obj, Rg, R, s = _samples()
+  meta = np.load(f"{DD}/tless_tokens/test_meta.npz")
+  sh = np.load(f"{DD}/tless_crops/test/shard_0000.npz")
+  kmeta = np.load(f"{DD}/tless_tokens/test_crop_meta.npy").astype(np.float32)
+  err = np.stack([rot_err(Rg[i], R[i], int(obj[i])) for i in range(len(rows))])
+  cons = np.array([int(np.argmax((np.stack([rot_err(R[i, a], R[i], int(obj[i])) for a in range(16)]) < 10).sum(1)))
+                   for i in range(len(rows))])
+  e_c = err[np.arange(len(rows)), cons]
+  fail = e_c >= 15
+  any_ok = (err < 10).any(1)
+  print("failures", fail.sum(), "of", len(fail), "with a good sample among 16:", (fail & any_ok).sum())
+  fig = plt.figure(figsize=(COL2, 3.0))
+  gs = fig.add_gridspec(2, n, height_ratios=[1.0, 1.05], hspace=0.62, wspace=0.06)
+  a = fig.add_subplot(gs[0, :n // 2 + 1])
+  a.hist(e_c[fail], np.arange(15, 181, 5), color=C["larc"])
+  a.set_xlabel("rotation error of failures (deg)"); a.set_ylabel("crops"); a.set_xticks([15, 45, 90, 135, 180])
+  a.set_title(f"{fail.sum()} failures ({100 * fail.mean():.1f}% of crops)", fontsize=6.8)
+  a = fig.add_subplot(gs[0, n // 2 + 2:])
+  cats = {"one of 16\nright": (fail & any_ok).sum(), "all 16\nwrong": (fail & ~any_ok).sum()}
+  a.bar(range(2), list(cats.values()), color=[C["larc2"], C["ctrl"]], width=0.6)
+  a.set_xticks(range(2)); a.set_xticklabels(list(cats), fontsize=6); a.set_ylabel("failed crops")
+  a.set_title("could selection have fixed it?", fontsize=6.8)
+  fi = np.where(fail)[0][:n]  # first failures in test order, no selection
+  for j, i in enumerate(fi):
+    r, o, k = int(rows[i]), int(obj[i]), kmeta[rows[i]]
+    a = fig.add_subplot(gs[1, j]); a.imshow(sh["image"][r]); off(a); a.set_xlim(0, 223); a.set_ylim(223, 0)
+    contour(a, silhouette(o, Rg[i], meta["translation_scaled"][r], k), C["gt"], 0.7, "--")
+    contour(a, silhouette(o, R[i, cons[i]], s["pose"][i, cons[i], 4:], k), C["larc"], 1.0)
+    a.set_title(f"obj {o}: {e_c[i]:.0f}$^\\circ$", fontsize=6.3)
+  save(fig, "fig_failures")
+
+
+def fig_mask_bias():
+  """detector masks vs annotation masks: shrunken masks push predicted depth back (diagnostic for Sec. 4)"""
+  import csv
+  B = f"{TL}/test_primesense"
+  cache = {}
+
+  def ratios(path):
+    out = []
+    for r in csv.DictReader(open(path)):
+      s_, i_, o_ = int(r["scene_id"]), int(r["im_id"]), int(r["obj_id"])
+      if s_ not in cache:
+        cache[s_] = (json.load(open(f"{B}/{s_:06d}/scene_gt.json")), json.load(open(f"{B}/{s_:06d}/scene_gt_info.json")))
+      t = np.array([float(x) for x in r["t"].split()])
+      cand = [(np.array(g["cam_t_m2c"]), gi["visib_fract"]) for g, gi in zip(cache[s_][0][str(i_)], cache[s_][1][str(i_)]) if g["obj_id"] == o_]
+      g, v = min(cand, key=lambda x: np.linalg.norm(x[0][:2] / x[0][2] - t[:2] / t[2]))
+      out.append((t[2] / g[2], v))
+    return np.array(out)
+
+  gtc = ratios("/media/kavinder/hdd3/larp_abl/experiments/tless-field/train_steps=100000+seed=42+den_mode=field_full+field=tl_field_v1/test_100000/inferences_tless-test.csv")
+  det = ratios("/media/kavinder/hdd3/larp_defdet/experiments_vis/tless-field/train_steps=100000+seed=42+den_mode=field_full_lat_ft+field=tl_field_det+joint=0.999/test_100000_sel16/n1/inferences_tless-test.csv")
+  fig, ax = plt.subplots(1, 2, figsize=(COL2 * 0.75, 1.6), gridspec_kw=dict(wspace=0.35))
+  bins = np.linspace(0.85, 1.25, 61)
+  ax[0].hist(gtc[:, 0], bins, histtype="step", color=C["frozen"], density=True, label="annotation masks")
+  ax[0].hist(det[:, 0], bins, histtype="step", color=C["ctrl"], density=True, label="detector masks")
+  ax[0].axvline(1, color=C["ink"], lw=0.5, ls="--"); ax[0].set_yticks([])
+  ax[0].set_xlabel("predicted / true depth"); ax[0].legend(loc="upper right", fontsize=5.4)
+  vb = [0, 0.5, 0.8, 0.95, 1.01]
+  for X, c, lab in ((gtc, C["frozen"], "annotation"), (det, C["ctrl"], "detector")):
+    ax[1].plot(range(4), [np.median(X[(X[:, 1] >= a) & (X[:, 1] < b), 0]) for a, b in zip(vb[:-1], vb[1:])], "-o", color=c, ms=2.5)
+  ax[1].axhline(1, color=C["ink"], lw=0.5, ls="--"); ax[1].set_xticks(range(4)); ax[1].set_xticklabels(["0-50", "50-80", "80-95", "95+"], fontsize=5.5)
+  ax[1].set_xlabel("visible fraction (%)"); ax[1].set_ylabel("median depth ratio")
+  save(fig, "fig_mask_bias")
+
+
 if __name__ == "__main__":
   which = sys.argv[1:] or ["render_compare", "in_loop", "trajectories", "energy", "geometry", "accuracy", "per_object",
-                           "selection", "summary"]
+                           "selection", "summary", "views", "occlusion", "population", "gallery", "robustness", "spread",
+                           "failures", "mask_bias"]
   for w in which:
     globals()[f"fig_{w}"]()
