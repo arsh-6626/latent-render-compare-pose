@@ -86,6 +86,16 @@ class Testbed(tless_dit.Testbed):
     through the denoiser (stop-gradient); joint: the field's current (or EMA) parameters"""
     return jax.lax.stop_gradient(self.field_model.apply(fparams or self.field_params, obj, Rg, tg, kg, app_stats(z_obs), with_latent=True))
 
+  def _weights(self, w, opa, z_hat, z_obs):
+    """wm_w: token weights from the world model instead of a mask: the field's rendered opacity at the hypothesis
+    (where the object should be) times a robust visibility from the comparison residual (occluded tokens disagree
+    with the render), kappa^2 / (kappa^2 + r^2) with kappa^2 the crop's median residual; stop-gradient, no labels"""
+    if not self.a.wm_w:
+      return w
+    r2 = ((z_hat - z_obs) ** 2).mean(-1)
+    k2 = jnp.median(r2, -1, keepdims=True) + 1e-8
+    return FG_FLOOR + jax.lax.stop_gradient(jnp.clip(opa, 0.0, 1.0) * k2 / (k2 + r2))
+
   @staticmethod
   def _split_field(params):
     """joint: (denoiser params without the field, {"params": field params} or None)"""
@@ -185,6 +195,7 @@ class Testbed(tless_dit.Testbed):
         f_loss = weighted_energy(pred, z_img, FG_FLOOR + mb.get("fg0", mb["fg"])).mean()
       z_obs = jnp.repeat(z_img, s, 0)
       z_hat, opa, h = self._render(mb["obj"], mb["Rg"], mb["tg"], mb["kg"], z_obs, fparams)
+      w = self._weights(w, opa, z_hat, z_obs)
       mu = model.apply({"params": params}, mb["rt"], t, mb["kg"], z_obs, w, z_hat, opa, h, keep, z_ext)
       if huber:  # [translation | rotation] velocity: pseudo-Huber on translation (train tails reach |t| ~ 47), MSE on rotation
         r = mu - mb["zt"]
@@ -255,6 +266,7 @@ class Testbed(tless_dit.Testbed):
       key, k = jax.random.split(key)
       Rg, tg = poses(rt)
       z_hat, opa, h = self._render(obj, Rg, tg, kg, z_obs)
+      w = self._weights(w, opa, z_hat, z_obs)
       mu = model.apply(params, rt, jnp.full((B, 1), t, jnp.float32), kg, z_obs, w, z_hat, opa, h, None, z_ext)
       if fm:
         return key, move(rt, mu, tp)
@@ -370,13 +382,15 @@ class Testbed(tless_dit.Testbed):
     @jax.jit
     def energy(rt, obj, z_obs, w, kg):
       Rg, tg = poses(rt)
-      z_hat, _, _ = self._render(obj, Rg, tg, kg, z_obs)
+      z_hat, opa, _ = self._render(obj, Rg, tg, kg, z_obs)
+      w = self._weights(w, opa, z_hat, z_obs)
       e = ((z_hat - z_obs) ** 2).mean(-1)
       return (w * e).sum(-1) / w.sum(-1)
 
     @jax.jit
     def energy_t(Rg, tg, obj, z_obs, w, kg):
-      z_hat, _, _ = self._render(obj, Rg, tg, kg, z_obs)
+      z_hat, opa, _ = self._render(obj, Rg, tg, kg, z_obs)
+      w = self._weights(w, opa, z_hat, z_obs)
       e = ((z_hat - z_obs) ** 2).mean(-1)
       return (w * e).sum(-1) / w.sum(-1)
 
@@ -486,6 +500,7 @@ def build_explorations():
   e.joint = [False]  # A1 (*_ft): train the comparison space (EMA of the trained DINOv2) and the field with the denoiser
   e.joint_tau = [0.999]  # EMA decay of the comparison encoder
   e.joint_w = [1.0]  # weight of the field's fitting loss
+  e.wm_w = [False]  # token weights from the field (rendered opacity x residual visibility), no mask; use with fg_uniform
   return e
 
 
@@ -496,7 +511,8 @@ def main():
     field = os.path.basename(os.path.normpath(opt.field_dir))
     exp_path = os.path.join(a.root_path, opt.to_string(includes=["den_mode", "train_steps", "seed"]) + f"+field={field}"
                             + ("" if opt.process == "diffusion" else f"+process={opt.process}")
-                            + (f"+joint={opt.joint_tau}" if opt.joint else ""))
+                            + (f"+joint={opt.joint_tau}" if opt.joint else "")
+                            + ("+wmw" if opt.wm_w else ""))
     tb = Testbed(opt, exp_path, setup=True)
     if not opt.skip_train:
       save_config(opt, os.path.join(exp_path, "configs.yaml"))
