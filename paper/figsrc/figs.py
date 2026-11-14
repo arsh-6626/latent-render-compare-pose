@@ -705,9 +705,66 @@ def fig_mask_bias():
   save(fig, "fig_mask_bias")
 
 
+# ================================================================== Fig 1: teaser (page 1, full width)
+def fig_teaser(ci=1, ch=None, steps=(0, 60, 99)):
+  """left: pose-only diffusion (control) final chains; middle: LaRC's render-and-compare at three steps of one chain;
+  right: LaRC final chains; far right: population translation error along the sampler (fig_population data)"""
+  t = traj[ci]; o = int(t["obj"]); z, w = t["z_joint"], t["w"]
+  if ch is None:
+    ch = int(np.argmin(np.abs(t["joint_rerr"][-1] - np.median(t["joint_rerr"][-1]))))  # the median chain, not the best
+  zh = [t["joint_zh0"][s].astype(np.float32) for s in steps]
+  col = pca_basis(np.concatenate([z, t["gt_zh_joint"]] + zh))
+  res = [residual(x, z, w) for x in zh]
+  vmax = np.percentile(np.concatenate([r.ravel() for r in res]), 99)
+  dim = (t["img"] * (0.35 + 0.65 * t["mask"][..., None])).astype(np.uint8)
+  s_gt = silhouette(o, t["R_gt"], t["t_gt"], t["k"])
+  fig = plt.figure(figsize=(COL2, 2.05))
+  gs = fig.add_gridspec(3, 9, width_ratios=[2.4, 0.18, 1, 1, 1, 0.22, 2.4, 0.95, 2.3], height_ratios=[1, 1, 1],
+                        wspace=0.06, hspace=0.08)
+
+  def final(cell, pfx, c, title):
+    a = fig.add_subplot(cell); a.imshow(dim)
+    for k in range(t[f"{pfx}_R"].shape[1]):
+      contour(a, silhouette(o, t[f"{pfx}_R"][-1, k], t[f"{pfx}_T"][-1, k], t["k"]), c, 0.45)
+    contour(a, s_gt, C["gt"], 0.8, "--")
+    a.set_xlim(0, 223); a.set_ylim(223, 0); off(a); a.set_title(title, fontsize=7)
+    a.text(4, 218, f"median: {np.median(t[f'{pfx}_rerr'][-1]):.1f}$^\\circ$, "
+                   f"$\\Delta t$ {np.median(t[f'{pfx}_terr'][-1]):.2f}", color="w", fontsize=5.6, va="bottom")
+    return a
+  final(gs[:, 0], "ctrl", C["ctrl"], "(a) pose-only diffusion\n16 samples")
+  for j, s in enumerate(steps):
+    a = fig.add_subplot(gs[0, 2 + j]); a.imshow(dim)
+    contour(a, s_gt, C["gt"], 0.5, "--")
+    contour(a, silhouette(o, t["joint_R"][s, ch], t["joint_T"][s, ch], t["k"]), C["sym"], 0.9)
+    a.set_xlim(0, 223); a.set_ylim(223, 0); off(a)
+    a.set_title(f"step {s + 1}: {t['joint_rerr'][s, ch]:.0f}$^\\circ$", fontsize=6)
+    a = fig.add_subplot(gs[1, 2 + j]); tokimg(a, col(zh[j]))
+    a = fig.add_subplot(gs[2, 2 + j]); a.imshow(res[j], cmap=RES, vmin=0, vmax=vmax); off(a)
+  final(gs[:, 6], "joint", C["larc"], "(c) LaRC\n16 samples")
+  a = fig.add_subplot(gs[:, 8])
+  P = np.load(f"{D}/population.npz"); x = np.arange(1, 101)
+  for nm, c, lab in (("ctrl", C["ctrl"], "pose-only"), ("joint", C["larc"], "LaRC")):
+    v = P[f"{nm}_terr"].transpose(1, 0, 2).reshape(100, -1)
+    a.plot(x, np.median(v, 1), color=c, label=lab)
+    a.fill_between(x, np.percentile(v, 25, 1), np.percentile(v, 75, 1), color=c, alpha=0.18, lw=0)
+  a.set_yscale("log"); a.set_xlabel("denoising step"); a.set_xticks([1, 50, 100])
+  a.set_ylabel("translation error"); a.legend(loc="lower left", fontsize=6)
+  a.set_title("(d) 48 crops $\\times$ 8 chains", fontsize=7)
+  fig.canvas.draw()
+  # row labels and the middle-block title, placed from the axes positions
+  ax_mid = [x for x in fig.axes if x.get_subplotspec().colspan.start == 2]
+  b0, b1, b2 = (ax_mid[i].get_position() for i in range(3))
+  xr = [x for x in fig.axes if x.get_subplotspec().colspan.start == 4][0].get_position().x1
+  fig.text((b0.x0 + xr) / 2, b0.y1 + 0.13, "(b) LaRC: world model renders $g_t$, denoiser compares",
+           ha="center", fontsize=7)
+  for bb, lab in zip((b0, b1, b2), ["hypothesis", "WM render", "residual"]):
+    fig.text(bb.x0 - 0.008, (bb.y0 + bb.y1) / 2, lab, rotation=90, ha="right", va="center", fontsize=5.8)
+  save(fig, "fig_teaser")
+
+
 if __name__ == "__main__":
   which = sys.argv[1:] or ["render_compare", "in_loop", "trajectories", "energy", "geometry", "accuracy", "per_object",
                            "selection", "summary", "views", "occlusion", "population", "gallery", "robustness", "spread",
-                           "failures", "mask_bias"]
+                           "failures", "mask_bias", "teaser"]
   for w in which:
     globals()[f"fig_{w}"]()
