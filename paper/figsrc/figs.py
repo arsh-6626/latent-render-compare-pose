@@ -26,6 +26,7 @@ from skimage.measure import find_contours
 
 from bop_toolkit_lib import inout
 from liepose.exp.jepa_probe.tless_field import TlessGeometry
+from liepose.exp.jepa_probe.probe_frozen import FG_FLOOR
 
 D = "/media/kavinder/hdd3/larc_figs/data"
 ERR = "/media/kavinder/hdd3/larc_figs/errs"
@@ -706,7 +707,7 @@ def fig_mask_bias():
 
 
 # ================================================================== Fig 1: teaser (page 1, full width)
-def fig_teaser(ci=1, ch=None, steps=(0, 60, 99)):
+def fig_teaser_strip(ci=1, ch=None, steps=(0, 60, 99)):
   """left: pose-only diffusion (control) final chains; middle: LaRC's render-and-compare at three steps of one chain;
   right: LaRC final chains; far right: population translation error along the sampler (fig_population data)"""
   t = traj[ci]; o = int(t["obj"]); z, w = t["z_joint"], t["w"]
@@ -759,7 +760,191 @@ def fig_teaser(ci=1, ch=None, steps=(0, 60, 99)):
            ha="center", fontsize=7)
   for bb, lab in zip((b0, b1, b2), ["hypothesis", "WM render", "residual"]):
     fig.text(bb.x0 - 0.008, (bb.y0 + bb.y1) / 2, lab, rotation=90, ha="right", va="center", fontsize=5.8)
-  save(fig, "fig_teaser")
+  save(fig, "fig_teaser_strip")
+
+
+# ================================================================== Fig 1: page-1 poster (architecture, in-loop, qualitative, results)
+def fig_teaser(ci=1, steps=(0, 60, 99), qual=(0, 1, 2, 3)):
+  from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+  from matplotlib.lines import Line2D
+  t = traj[ci]; o = int(t["obj"]); z, w = t["z_joint"], t["w"]
+  ch = int(np.argmin(np.abs(t["joint_rerr"][-1] - np.median(t["joint_rerr"][-1]))))
+  zh = [t["joint_zh0"][s].astype(np.float32) for s in steps]
+  col = pca_basis(np.concatenate([z, t["gt_zh_joint"]] + zh))
+  res = [residual(x, z, w) for x in zh]
+  vmax = np.percentile(np.concatenate([r.ravel() for r in res]), 99)
+  dim = (t["img"] * (0.35 + 0.65 * t["mask"][..., None])).astype(np.uint8)
+  s_gt = silhouette(o, t["R_gt"], t["t_gt"], t["k"])
+  W, H = COL2, 4.0
+  fig = plt.figure(figsize=(W, H))
+
+  def crop_ax(rect, img, outlines=(), title=None, fs=6):
+    a = fig.add_axes(rect); a.imshow(img); off(a); a.set_xlim(0, 223); a.set_ylim(223, 0)
+    for m, c, lw, ls in outlines:
+      contour(a, m, c, lw, ls)
+    if title:
+      a.set_title(title, fontsize=fs, pad=1.5)
+    return a
+
+  def sq(x, y, h):  # square axes rect of height h (figure fraction) at (x, y)
+    return [x, y, h * H / W, h]
+
+  def panel(x, y, s):
+    fig.text(x, y, s, fontsize=7.5, fontweight="bold", va="top")
+
+  # ---------------------------------------------------------------- (a) dense overview: one denoising step, real tensors
+  r_ = H / W
+  A = fig.add_axes([0, 0, 1, 1], zorder=-1); A.set_xlim(0, 1); A.set_ylim(0, 1); A.axis("off")
+
+  def box(x0_, y0_, x1_, y1_, fc, ec, txt=None, ty=None, fs=6.0):
+    A.add_patch(FancyBboxPatch((x0_, y0_), x1_ - x0_, y1_ - y0_, boxstyle="round,pad=0.003,rounding_size=0.008",
+                               fc=fc, ec=ec, lw=0.8))
+    if txt:
+      A.text((x0_ + x1_) / 2, (y0_ + y1_) / 2 if ty is None else ty, txt, ha="center", va="center", fontsize=fs)
+
+  def arrow(p, q, c=C["ink"], cs="arc3", lw=0.7):
+    A.add_patch(FancyArrowPatch(p, q, arrowstyle="-|>", mutation_scale=5, lw=lw, color=c, connectionstyle=cs,
+                                shrinkA=0, shrinkB=0))
+
+  def thumb(x, y, h, img, cmap=None, vmin=None, vmax=None, outlines=(), lab=None, fs=5.4):
+    a = fig.add_axes([x, y, h * r_, h]); a.imshow(img, cmap=cmap, vmin=vmin, vmax=vmax, interpolation="nearest"); off(a)
+    if img.shape[0] == 224:
+      a.set_xlim(0, 223); a.set_ylim(223, 0)
+    for m, c, lw, ls in outlines:
+      contour(a, m, c, lw, ls)
+    if lab:
+      A.text(x + h * r_ / 2, y - 0.006, lab, ha="center", va="top", fontsize=fs)
+    return a
+
+  s1 = steps[1]
+  sil = silhouette(o, t["joint_R"][s1, ch], t["joint_T"][s1, ch], t["k"])
+  PL = np.load(f"{D}/planes.npz")
+  op = t["joint_op0"][s1].reshape(8, 8)
+  r2 = ((zh[1] - z) ** 2).mean(-1); k2 = np.median(r2)
+  wm_w = (FG_FLOOR + np.clip(t["joint_op0"][s1], 0, 1) * k2 / (k2 + r2)).reshape(8, 8)
+  T_ = 0.135; tw = T_ * r_
+  yt, yb = 0.785, 0.525
+  # observation branch
+  thumb(0.005, yt, T_, dim, lab="observation crop $I$")
+  box(0.098, yt + 0.02, 0.19, yt + T_ - 0.02, "#eef2fa", C["larc"], "image encoder\n$\\psi$ (DINOv2-S)\n$\\bar\\psi=\\mathrm{EMA}(\\psi)$", fs=5.4)
+  arrow((0.005 + tw + 0.002, yt + T_ / 2), (0.098, yt + T_ / 2))
+  thumb(0.205, yt, T_, col(z), lab="observed $\\bar{\\mathbf{z}}=\\bar\\psi(I)$")
+  arrow((0.19, yt + T_ / 2), (0.205, yt + T_ / 2))
+  # world-model branch
+  thumb(0.005, yb, T_, dim, outlines=[(sil, C["sym"], 0.9, "-")], lab="noisy pose $g_t$")
+  box(0.098, yb - 0.035, 0.30, yb + T_ + 0.02, "#fdf3df", C["sym"])
+  A.text(0.172, yb + T_ + 0.005, "world model $F$: feature field", ha="center", va="center", fontsize=5.8, fontweight="bold")
+  hp = 0.062
+  for i, kk in enumerate(("xy", "xz", "yz")):
+    thumb(0.107 + i * (hp * r_ + 0.006), yb + 0.05, hp, PL[f"{kk}_{o}"], lab=kk, fs=4.8)
+  A.text(0.163, yb + 0.03, "", fontsize=5)
+  A.text(0.163, yb - 0.015, "per-object tri-planes", ha="center", va="center", fontsize=5.0)
+  box(0.225, yb + 0.035, 0.293, yb + 0.115, "#ffffff", "#bbbbbb", "volume\nrender at $g_t$\n+ app. code", fs=4.9)
+  arrow((0.107 + 3 * (hp * r_ + 0.006) - 0.003, yb + 0.05 + hp / 2), (0.225, yb + 0.075))
+  arrow((0.005 + tw + 0.002, yb + T_ / 2), (0.098, yb + T_ / 2))
+  arrow((0.205 + tw / 2, yt - 0.025), (0.259, yb + 0.115), cs="arc3,rad=0.0")
+  A.text(0.262, yt - 0.06, "appearance\nstats of $\\bar{\\mathbf{z}}$", ha="left", va="center", fontsize=4.9, color="#555555")
+  thumb(0.315, yb, T_, col(zh[1]), lab="render $\\hat{\\mathbf{z}}(g_t)$")
+  thumb(0.315 + tw + 0.008, yb, T_, op, cmap="gray", vmin=0, vmax=1, lab="opacity $o(g_t)$")
+  arrow((0.30, yb + T_ / 2), (0.315, yb + T_ / 2))
+  # comparison
+  xc0, xc1, yc0, yc1 = 0.515, 0.618, 0.69, 0.80
+  box(xc0, yc0, xc1, yc1, "#f4f4f4", "#777777",
+      "compare tokens\n$[\\bar{\\mathbf{z}},\\ \\hat{\\mathbf{z}},\\ \\hat{\\mathbf{z}}\\!-\\!\\bar{\\mathbf{z}},\\ w,\\ \\mathbf{h}]$", fs=5.4)
+  arrow((0.205 + tw + 0.002, yt + T_ / 2), (xc0, yc1 - 0.025), cs="arc3,rad=-0.1")
+  arrow((0.315 + 2 * tw + 0.01, yb + T_ * 0.75), (xc0, yc0 + 0.02), cs="arc3,rad=0.15")
+  T2 = 0.085
+  thumb(0.395, 0.825, T2, res[1], cmap=RES, vmin=0, vmax=vmax, lab="residual $r^2$", fs=5.0)
+  thumb(0.395 + T2 * r_ + 0.022, 0.825, T2, wm_w, cmap="gray", vmin=0, vmax=1.05, lab="weights $w$", fs=5.0)
+  A.text(0.395, 0.95, "WM token weights  $w=o\\cdot\\kappa^2/(\\kappa^2+r^2)$", fontsize=5.0, va="center", ha="left", color="#555555")
+  arrow((0.395 + 2 * T2 * r_ + 0.024, 0.825 + T2 / 2), (xc1 - 0.03, yc1), cs="arc3,rad=-0.3")
+  # denoiser and loop
+  xd0, xd1, yd0, yd1 = 0.515, 0.618, 0.545, 0.645
+  box(xd0, yd0, xd1, yd1, "#eef2fa", C["larc"], "SE(3) denoiser $\\epsilon_\\theta$\n(transformer, $t$)\n$g_t\\to g_{t-1}$", fs=5.4)
+  arrow(((xc0 + xc1) / 2, yc0), ((xc0 + xc1) / 2, yd1))
+  A.add_patch(FancyArrowPatch(((xd0 + xd1) / 2, yd0), (0.005 + tw / 2, yb - 0.035), arrowstyle="-|>", mutation_scale=6,
+                              lw=0.9, color=C["larc"], connectionstyle="angle,angleA=-90,angleB=0,rad=3"))
+  A.text(0.40, yb - 0.072, "repeat for $t=T,\\ldots,1$ (16 chains)  $\\rightarrow$  select by consensus / energy",
+         ha="center", va="center", fontsize=5.6, color=C["larc"])
+  A.text(0.40, 0.95, "", fontsize=1)
+  panel(0.0, 0.995, "(a) LaRC: latent render-and-compare inside every SE(3) diffusion step")
+
+  # ---------------------------------------------------------------- (b) one chain through the sampler
+  x0, h = 0.675, 0.12
+  panel(x0 - 0.025, 0.995, "(b) sampling one test crop")
+  ys = [0.815, 0.685, 0.555]
+  for j, s in enumerate(steps):
+    xj = x0 + j * (h * H / W + 0.006)
+    so = silhouette(o, t["joint_R"][s, ch], t["joint_T"][s, ch], t["k"])
+    crop_ax(sq(xj, ys[0], h), dim, [(s_gt, C["gt"], 0.5, "--"), (so, C["sym"], 0.9, "-")],
+            f"step {s + 1}: {t['joint_rerr'][s, ch]:.0f}$^\\circ$")
+    a = fig.add_axes(sq(xj, ys[1], h)); tokimg(a, col(zh[j]))
+    a = fig.add_axes(sq(xj, ys[2], h)); a.imshow(res[j], cmap=RES, vmin=0, vmax=vmax); off(a)
+  for y_, lab in zip(ys, ["hypothesis", "WM render", "residual"]):
+    fig.text(x0 - 0.006, y_ + h / 2, lab, rotation=90, ha="right", va="center", fontsize=5.6)
+  xe = x0 + 3 * (h * H / W + 0.006) + 0.01
+  crop_ax(sq(xe, ys[0] - 0.06, 0.18), dim,
+          [(silhouette(o, t["joint_R"][-1, k], t["joint_T"][-1, k], t["k"]), C["larc"], 0.45, "-") for k in range(16)]
+          + [(s_gt, C["gt"], 0.7, "--")], "LaRC, 16 samples")
+  crop_ax(sq(xe, ys[2] - 0.005, 0.18), dim,
+          [(silhouette(o, t["ctrl_R"][-1, k], t["ctrl_T"][-1, k], t["k"]), C["ctrl"], 0.45, "-") for k in range(16)]
+          + [(s_gt, C["gt"], 0.7, "--")])
+  fig.text(xe + 0.18 * H / W / 2, ys[2] - 0.012, "pose-only, 16 samples", ha="center", va="top", fontsize=6)
+
+  # ---------------------------------------------------------------- (c) qualitative, seeded test crops (no selection)
+  P = np.load(f"{D}/population.npz")
+  sh = np.load(f"{DD}/tless_crops/test/shard_0000.npz")
+  panel(0.0, 0.405, "(c) T-LESS test crops")
+  hq = 0.145
+  for j, q in enumerate(qual):
+    r, oq, k = int(P["rows"][q]), int(P["obj"][q]), P["k"][q]
+    sg = silhouette(oq, P["R_gt"][q], P["t_gt"][q], k)
+    for i, (nm, c) in enumerate((("joint", C["larc"]), ("ctrl", C["ctrl"]))):
+      a = crop_ax(sq(0.022 + j * (hq * H / W + 0.004), 0.205 - i * (hq + 0.008), hq), sh["image"][r],
+                  [(sg, C["gt"], 0.5, "--"), (silhouette(oq, P[f"{nm}_R"][q, 0], P[f"{nm}_T"][q, 0], k), c, 0.8, "-")])
+      a.text(5, 216, f"{P[f'{nm}_rerr'][q, -1, 0]:.0f}$^\\circ$, {P[f'{nm}_terr'][q, -1, 0]:.2f}", color="w", fontsize=4.6)
+  fig.text(0.017, 0.205 + hq / 2, "LaRC", rotation=90, ha="right", va="center", fontsize=6, color=C["larc"])
+  fig.text(0.017, 0.205 - hq / 2 - 0.008, "pose-only", rotation=90, ha="right", va="center", fontsize=6, color=C["ctrl"])
+
+  # ---------------------------------------------------------------- (d) translation error along the sampler (population)
+  a = fig.add_axes([0.43, 0.09, 0.165, 0.27])
+  x = np.arange(1, 101)
+  for nm, c in (("ctrl", C["ctrl"]), ("joint", C["larc"])):
+    v = P[f"{nm}_terr"].transpose(1, 0, 2).reshape(100, -1)
+    a.plot(x, np.median(v, 1), color=c)
+    a.fill_between(x, np.percentile(v, 25, 1), np.percentile(v, 75, 1), color=c, alpha=0.18, lw=0)
+  a.set_yscale("log"); a.set_xticks([1, 50, 100]); a.set_xlabel("denoising step", labelpad=1)
+  a.set_yticks([0.1, 0.3, 1, 3]); a.set_yticklabels(["0.1", "0.3", "1", "3"]); a.minorticks_off()
+  a.set_ylabel("translation error", labelpad=1)
+  panel(0.375, 0.405, "(d) 48 crops$\\times$8 chains")
+
+  # ---------------------------------------------------------------- (e) T-LESS AR (paper tables, GT crops)
+  a = fig.add_axes([0.715, 0.09, 0.10, 0.27])
+  rows = [("LiePose", 70.1, C["lie"]), ("pose-only", 52.2, C["ctrl"]), ("LaRC", 82.2, C["larc"]), ("+select", 84.9, C["larc2"])]
+  for i, (lab, v, c) in enumerate(rows):
+    a.bar(i, v, color=c, width=0.75); a.text(i, v + 1.5, f"{v:.1f}", ha="center", fontsize=5.2)
+  a.set_xticks(range(len(rows))); a.set_xticklabels([r[0] for r in rows], rotation=40, ha="right", fontsize=5.4)
+  a.set_ylim(40, 92); a.set_ylabel("T-LESS AR", labelpad=1)
+  panel(0.645, 0.405, "(e) accuracy")
+
+  # ---------------------------------------------------------------- (f) instance AR by visible fraction
+  gi = _gt_info()
+  vb = np.array([0.1, 0.3, 0.5, 0.7, 0.85, 0.95, 1.01])
+  a = fig.add_axes([0.865, 0.09, 0.135, 0.27])
+  for name, c in (("field_nowm_ft", C["ctrl"]), ("joint_n1", C["larc"])):
+    sc = _inst_scores(name); keys = [k for k in sc if k in gi]
+    v = np.array([gi[k][0] for k in keys]); y = np.array([sc[k] for k in keys]) * 100
+    a.plot(range(len(vb) - 1), [y[(v >= lo) & (v < hi)].mean() for lo, hi in zip(vb[:-1], vb[1:])], "-o", color=c, ms=2)
+  a.set_xticks(range(len(vb) - 1)); a.set_xticklabels([f"{int(b * 100)}" for b in vb[:-1]], fontsize=5)
+  a.set_xlabel("visible (%)", labelpad=1); a.set_ylabel("instance AR", labelpad=1); a.set_ylim(0, 100)
+  panel(0.83, 0.405, "(f) occlusion")
+  fig.legend([Line2D([], [], color="k", ls="--", lw=0.8), Line2D([], [], color=C["larc"]),
+              Line2D([], [], color=C["ctrl"]), Line2D([], [], color=C["sym"])],
+             ["ground truth", "LaRC", "pose-only diffusion (same encoder)", "current hypothesis"],
+             loc="lower center", ncol=4, bbox_to_anchor=(0.5, -0.075), fontsize=6, handlelength=1.6)
+  fig.savefig(f"{OUT}/fig_teaser.pdf", bbox_inches="tight", pad_inches=0.02)
+  fig.savefig(f"{OUT}/fig_teaser.png", bbox_inches="tight", pad_inches=0.02, dpi=300)
+  plt.close(fig); print("saved fig_teaser")
 
 
 if __name__ == "__main__":
