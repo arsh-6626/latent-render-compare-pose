@@ -4,6 +4,10 @@
   "field": 0.40554118156433105,
   "nn": 1.4059380292892456,
   "field_better": 0.9980902012634053,
+  "own_mean_token": 0.85027676820755,
+  "nn_appearance_matched": 0.8647890090942383,
+  "field_better_than_own_mean": 0.9988247392390187,
+  "field_better_than_nn_matched": 0.9767885999706185,
   "by_dist": {
    "0-2": [
     0.40716081857681274,
@@ -24,6 +28,10 @@
   "field": 0.4067939817905426,
   "nn": 1.472617268562317,
   "field_better": 0.9985023214018272,
+  "own_mean_token": 0.9082743525505066,
+  "nn_appearance_matched": 0.9389858841896057,
+  "field_better_than_own_mean": 0.9977534821027407,
+  "field_better_than_nn_matched": 0.9848734461584544,
   "by_dist": {
    "0-2": [
     0.4087810814380646,
