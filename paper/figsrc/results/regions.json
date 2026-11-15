@@ -1,0 +1,37 @@
+{
+ "cone60": {
+  "desc": "60-degree cones, objects without continuous symmetry",
+  "train_removed": 51506,
+  "train_total": 180224,
+  "test_in": 1742,
+  "min_kept_frac_per_object": 0.431
+ },
+ "cone90": {
+  "desc": "90-degree cones, objects without continuous symmetry",
+  "train_removed": 88838,
+  "train_total": 180224,
+  "test_in": 2750,
+  "min_kept_frac_per_object": 0.025
+ },
+ "elev": {
+  "desc": "elevation > 49.5 deg",
+  "train_removed": 28075,
+  "train_total": 180224,
+  "test_in": 1704,
+  "min_kept_frac_per_object": 0.655
+ },
+ "dist": {
+  "desc": "distance > 0.795 m",
+  "train_removed": 89245,
+  "train_total": 180224,
+  "test_in": 2045,
+  "min_kept_frac_per_object": 0.483
+ },
+ "roll": {
+  "desc": "in-plane rotation within 30 deg of the median test roll",
+  "train_removed": 34825,
+  "train_total": 180224,
+  "test_in": 3418,
+  "min_kept_frac_per_object": 0.67
+ }
+}

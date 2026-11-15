@@ -254,6 +254,7 @@ def main():
   p.add_argument("--seed", type=int, default=0)
   p.add_argument("--holdout", default=None, help="npz with dirs (30, 3): per-object viewing direction to hold out (object frame)")
   p.add_argument("--holdout_deg", type=float, default=30.0, help="half-angle of the held-out cone (symmetry-aware)")
+  p.add_argument("--exclude_rows", default=None, help="npy of training-row indices to hold out (any held-out region)")
   # Ceiling (= tless_ret_v1's)
   p.add_argument("--val_frac", type=float, default=0.03)
   p.add_argument("--ceil_n", type=int, default=500)
@@ -287,6 +288,10 @@ def main():
     np.save(os.path.join(a.out, "holdout_rows.npy"), np.nonzero(cone)[0])
   else:
     cone = np.zeros(len(train.obj), bool)
+  if a.exclude_rows:
+    cone[np.load(a.exclude_rows)] = True
+    print(f"exclude_rows: {cone.sum()} of {len(cone)} crops held out", flush=True)
+    np.save(os.path.join(a.out, "holdout_rows.npy"), np.nonzero(cone)[0])
   val_rows, train_rows = np.nonzero(is_val & ~cone)[0], np.nonzero(~is_val & ~cone)[0]
   val_obs = np.sort(np.random.default_rng(99).choice(val_rows, min(a.ceil_n, len(val_rows)), replace=False))
   ceil = prt.Ceiling(train, val_obs, syms, None, a, 7)

@@ -83,7 +83,13 @@ class Testbed(tless_dit.Testbed):
 
   def _render(self, obj, Rg, tg, kg, z_obs, fparams=None):
     """field of each hypothesis' object at (allocentric R, translation_scaled) in the observation's crop; never trained
-    through the denoiser (stop-gradient); joint: the field's current (or EMA) parameters"""
+    through the denoiser (stop-gradient); joint: the field's current (or EMA) parameters.
+    wm_pose=ref (control): the field is rendered at a fixed reference pose (identity allocentric rotation, translation_scaled
+    0 = crop-centred at the standardised median depth) instead of the hypothesis: same inputs, parameters and field
+    compute, no information about the hypothesis"""
+    if self.a.wm_pose == "ref":
+      Rg = jnp.broadcast_to(jnp.eye(3, dtype=Rg.dtype), Rg.shape)
+      tg = jnp.zeros_like(tg)
     return jax.lax.stop_gradient(self.field_model.apply(fparams or self.field_params, obj, Rg, tg, kg, app_stats(z_obs), with_latent=True))
 
   def _weights(self, w, opa, z_hat, z_obs):
@@ -246,6 +252,7 @@ class Testbed(tless_dit.Testbed):
       self.field_params = fp  # joint: the trained field (run_select / energies use self._render)
     T = self.noise_schedule.timesteps
     fm = self.a.process in FM
+    guide_w = float(self.a.guide_w)
     if fm:  # Euler steps of the ODE on the group, tau 1 -> 0: g <- g Exp(-(tau - tau') v)
       lm, rep = self.lie_metrics, self.a.repr_type
       taus = np.linspace(1.0, 0.0, n_steps + 1)
@@ -268,6 +275,20 @@ class Testbed(tless_dit.Testbed):
       z_hat, opa, h = self._render(obj, Rg, tg, kg, z_obs)
       w = self._weights(w, opa, z_hat, z_obs)
       mu = model.apply(params, rt, jnp.full((B, 1), t, jnp.float32), kg, z_obs, w, z_hat, opa, h, None, z_ext)
+      if guide_w > 0 and not fm:  # energy guidance (ablation): eps <- eps + guide_w * sigma_t * grad_xi E(g_t Exp(xi))
+        gm, grep_ = self.lie_metrics, self.a.repr_type
+        fp_g = self.field_params
+
+        def e_sum(xi):
+          rp = jax.vmap(lambda r, x: gm.as_repr(gm.as_lie(r) @ self.Lie.exp(x), grep_))(rt, xi)
+          R2, t2 = poses(rp)
+          zh = self.field_model.apply(fp_g, obj, R2, t2, kg, app_stats(z_obs))
+          return weighted_energy(zh, z_obs, w).sum()
+
+        gE = jax.grad(e_sum)(jnp.zeros((B, 6), jnp.float32))
+        sa = self.noise_schedule.sqrt_alphas[t]
+        eps = jax.vmap(lambda m: gm.as_lie(m).log())(mu) + guide_w * sa * gE
+        mu = jax.vmap(lambda e_: gm.as_repr(self.Lie.exp(e_), grep_))(eps)
       if fm:
         return key, move(rt, mu, tp)
       _, rt = p_fn(jax.random.split(k, B), mu, rt, jnp.full((B,), t), jnp.full((B,), tp))
@@ -501,6 +522,8 @@ def build_explorations():
   e.joint_tau = [0.999]  # EMA decay of the comparison encoder
   e.joint_w = [1.0]  # weight of the field's fitting loss
   e.wm_w = [False]  # token weights from the field (rendered opacity x residual visibility), no mask; use with fg_uniform
+  e.guide_w = [0.0]  # > 0: energy guidance at test time (ablation; the denoiser is unchanged)
+  e.wm_pose = ["hyp"]  # hyp: render at the hypothesis (LaRC); ref: at a fixed reference pose (unrelated-pose control)
   return e
 
 
@@ -512,7 +535,7 @@ def main():
     exp_path = os.path.join(a.root_path, opt.to_string(includes=["den_mode", "train_steps", "seed"]) + f"+field={field}"
                             + ("" if opt.process == "diffusion" else f"+process={opt.process}")
                             + (f"+joint={opt.joint_tau}" if opt.joint else "")
-                            + ("+wmw" if opt.wm_w else ""))
+                            + ("+wmw" if opt.wm_w else "") + ("+wmref" if opt.wm_pose == "ref" else "") + (f"+guide{opt.guide_w:g}" if opt.guide_w else ""))
     tb = Testbed(opt, exp_path, setup=True)
     if not opt.skip_train:
       save_config(opt, os.path.join(exp_path, "configs.yaml"))

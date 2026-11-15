@@ -1,0 +1,67 @@
+{
+ "align_median_cos(eps, gradE)": {
+  "all": {
+   "step 1 (sigma 0.985)": 0.215,
+   "step 25 (sigma 0.65)": 0.454,
+   "step 50 (sigma 0.355)": 0.578,
+   "step 75 (sigma 0.126)": 0.521,
+   "step 90 (sigma 0.0325)": 0.305,
+   "step 95 (sigma 0.0119)": 0.053,
+   "step 100 (sigma 0.0001)": 0.107
+  },
+  "rot": {
+   "step 1 (sigma 0.985)": 0.146,
+   "step 25 (sigma 0.65)": 0.594,
+   "step 50 (sigma 0.355)": 0.813,
+   "step 75 (sigma 0.126)": 0.69,
+   "step 90 (sigma 0.0325)": 0.321,
+   "step 95 (sigma 0.0119)": 0.079,
+   "step 100 (sigma 0.0001)": 0.087
+  },
+  "tran": {
+   "step 1 (sigma 0.985)": 0.51,
+   "step 25 (sigma 0.65)": 0.543,
+   "step 50 (sigma 0.355)": 0.517,
+   "step 75 (sigma 0.126)": 0.499,
+   "step 90 (sigma 0.0325)": 0.411,
+   "step 95 (sigma 0.0119)": 0.034,
+   "step 100 (sigma 0.0001)": 0.077
+  }
+ },
+ "link": {
+  "spearman_rot_err_vs_fvu": [
+   0.3955780889522336,
+   4.246739682348945e-254
+  ],
+  "spearman_rot_err_vs_ranking": [
+   -0.2596318055567344,
+   1.5655745768749927e-24
+  ],
+  "correct_rate_by_fvu_quartile": [
+   0.9642018779342723,
+   0.9606576629477392,
+   0.9072769953051644,
+   0.6971830985915493
+  ],
+  "correct_rate_by_ranking_bin": {
+   "0-0.75": 0.5,
+   "0.75-0.95": 0.8329764453961456,
+   "0.95-1.01": 0.9340885684860968
+  },
+  "ranking_bin_counts": [
+   62,
+   467,
+   971
+  ]
+ },
+ "runtime_ms_per_target": {
+  "gpu": "RTX 6000 Ada",
+  "encoder": 4.076383113861084,
+  "field_per_step": 0.35603547096252447,
+  "denoiser_per_step": 0.07859742641448975,
+  "larc_total_100_steps": 47.53967285156251,
+  "control_total_100_steps": 11.936125755310059,
+  "liepose_test_log_time_median_s": 0.04461956024169922,
+  "note": "LiePose: the 'time' column of its BOP CSV (seconds, as written by the evaluator)"
+ }
+}
