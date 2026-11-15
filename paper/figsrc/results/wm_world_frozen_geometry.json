@@ -1,0 +1,663 @@
+{
+ "geometry": {
+  "frozen": {
+   "auroc_inside": 0.9648722282874859,
+   "iou_matched_volume": 0.4204329134932824,
+   "sil_iou": 0.2648171582862343,
+   "opaque_frac": 0.9708251953125,
+   "cad_frac": 0.2586669921875,
+   "depth_err": 0.059431562753316215,
+   "chamfer_matched_volume": 0.030635360410294306
+  },
+  "joint": {
+   "auroc_inside": 0.9647461861549198,
+   "iou_matched_volume": 0.37963449652592623,
+   "sil_iou": 0.2661713994015279,
+   "opaque_frac": 0.9812825520833333,
+   "cad_frac": 0.2586669921875,
+   "depth_err": 0.05903872412670407,
+   "chamfer_matched_volume": 0.04314405553533397
+  },
+  "bbox_fill": {
+   "iou_matched_volume": 0.4287371584135614
+  }
+ },
+ "geometry_per_object": {
+  "frozen": {
+   "1": {
+    "auroc_inside": 0.9739969903205887,
+    "iou_matched_volume": 0.4427154427154427,
+    "sil_iou": 0.24872386587181472,
+    "opaque_frac": 0.9483235677083334,
+    "cad_frac": 0.235595703125,
+    "depth_err": 0.06261793652734406,
+    "chamfer_matched_volume": 0.030902007327939882
+   },
+   "2": {
+    "auroc_inside": 0.957104767386758,
+    "iou_matched_volume": 0.4027220724570978,
+    "sil_iou": 0.3028522183630563,
+    "opaque_frac": 0.968505859375,
+    "cad_frac": 0.293212890625,
+    "depth_err": 0.06913627002638387,
+    "chamfer_matched_volume": 0.027463204211485112
+   },
+   "3": {
+    "auroc_inside": 0.9581479657778645,
+    "iou_matched_volume": 0.44533012483080164,
+    "sil_iou": 0.3291359416846832,
+    "opaque_frac": 0.9697265625,
+    "cad_frac": 0.319091796875,
+    "depth_err": 0.07488744547898879,
+    "chamfer_matched_volume": 0.028728655301982715
+   },
+   "4": {
+    "auroc_inside": 0.9923558353150285,
+    "iou_matched_volume": 0.6957159476000202,
+    "sil_iou": 0.21992050685141704,
+    "opaque_frac": 0.907958984375,
+    "cad_frac": 0.19978841145833334,
+    "depth_err": 0.04562263105574648,
+    "chamfer_matched_volume": 0.03598774169428951
+   },
+   "5": {
+    "auroc_inside": 0.9670456220099749,
+    "iou_matched_volume": 0.5024993014374864,
+    "sil_iou": 0.26229039008478416,
+    "opaque_frac": 0.970458984375,
+    "cad_frac": 0.2548828125,
+    "depth_err": 0.04200125947760299,
+    "chamfer_matched_volume": 0.027648398922268756
+   },
+   "6": {
+    "auroc_inside": 0.9739767622831894,
+    "iou_matched_volume": 0.4988801563708922,
+    "sil_iou": 0.2402109742757481,
+    "opaque_frac": 0.9702962239583334,
+    "cad_frac": 0.23347981770833334,
+    "depth_err": 0.051601625946135016,
+    "chamfer_matched_volume": 0.022815656049801816
+   },
+   "7": {
+    "auroc_inside": 0.9795041694958542,
+    "iou_matched_volume": 0.4447554013209448,
+    "sil_iou": 0.2018873087300513,
+    "opaque_frac": 0.949462890625,
+    "cad_frac": 0.1923828125,
+    "depth_err": 0.03801439168523104,
+    "chamfer_matched_volume": 0.01733031102403803
+   },
+   "8": {
+    "auroc_inside": 0.9789099680617588,
+    "iou_matched_volume": 0.37832252547566453,
+    "sil_iou": 0.1866319001260565,
+    "opaque_frac": 0.9144694010416666,
+    "cad_frac": 0.17268880208333334,
+    "depth_err": 0.03604764248125008,
+    "chamfer_matched_volume": 0.016533909450902558
+   },
+   "9": {
+    "auroc_inside": 0.9666789111201899,
+    "iou_matched_volume": 0.29806598407281,
+    "sil_iou": 0.21907013113146812,
+    "opaque_frac": 0.9520670572916666,
+    "cad_frac": 0.20930989583333334,
+    "depth_err": 0.05772514528509939,
+    "chamfer_matched_volume": 0.022336894431371834
+   },
+   "10": {
+    "auroc_inside": 0.9657879689827894,
+    "iou_matched_volume": 0.28911264946507237,
+    "sil_iou": 0.24213357494702573,
+    "opaque_frac": 0.9717610677083334,
+    "cad_frac": 0.2353515625,
+    "depth_err": 0.09081823678239621,
+    "chamfer_matched_volume": 0.022832019250007773
+   },
+   "11": {
+    "auroc_inside": 0.9626790519956002,
+    "iou_matched_volume": 0.39332492058657154,
+    "sil_iou": 0.2607609074175243,
+    "opaque_frac": 0.9713541666666666,
+    "cad_frac": 0.2533365885416667,
+    "depth_err": 0.0784288596199388,
+    "chamfer_matched_volume": 0.022583240846868673
+   },
+   "12": {
+    "auroc_inside": 0.9442511273457048,
+    "iou_matched_volume": 0.37739931597682697,
+    "sil_iou": 0.30063285033087134,
+    "opaque_frac": 0.9796549479166666,
+    "cad_frac": 0.2945149739583333,
+    "depth_err": 0.07448048856007035,
+    "chamfer_matched_volume": 0.023422918983926344
+   },
+   "13": {
+    "auroc_inside": 0.9270685468904949,
+    "iou_matched_volume": 0.2265775177601337,
+    "sil_iou": 0.3084646880097282,
+    "opaque_frac": 0.9903157552083334,
+    "cad_frac": 0.3055826822916667,
+    "depth_err": 0.10379421190597306,
+    "chamfer_matched_volume": 0.03512223449792988
+   },
+   "14": {
+    "auroc_inside": 0.9465072745804854,
+    "iou_matched_volume": 0.2962918991649848,
+    "sil_iou": 0.2836934762407455,
+    "opaque_frac": 0.9712727864583334,
+    "cad_frac": 0.2755533854166667,
+    "depth_err": 0.09846194048910656,
+    "chamfer_matched_volume": 0.037830874634539824
+   },
+   "15": {
+    "auroc_inside": 0.9417696943971376,
+    "iou_matched_volume": 0.33983314248323243,
+    "sil_iou": 0.29441797837840694,
+    "opaque_frac": 0.9867350260416666,
+    "cad_frac": 0.2906901041666667,
+    "depth_err": 0.06596821793895305,
+    "chamfer_matched_volume": 0.03045326570042165
+   },
+   "16": {
+    "auroc_inside": 0.9266248896391898,
+    "iou_matched_volume": 0.3534118102052162,
+    "sil_iou": 0.35475833778050087,
+    "opaque_frac": 0.9937337239583334,
+    "cad_frac": 0.3525390625,
+    "depth_err": 0.0736153551379567,
+    "chamfer_matched_volume": 0.028721411103095642
+   },
+   "17": {
+    "auroc_inside": 0.9080161549841321,
+    "iou_matched_volume": 0.2550434038391001,
+    "sil_iou": 0.3610857413109609,
+    "opaque_frac": 0.990478515625,
+    "cad_frac": 0.35791015625,
+    "depth_err": 0.07586757825704295,
+    "chamfer_matched_volume": 0.027309370183495836
+   },
+   "18": {
+    "auroc_inside": 0.9234667693828653,
+    "iou_matched_volume": 0.10590424632041956,
+    "sil_iou": 0.33554943261076753,
+    "opaque_frac": 0.9759928385416666,
+    "cad_frac": 0.32763671875,
+    "depth_err": 0.1278207294929267,
+    "chamfer_matched_volume": 0.030817455120166964
+   },
+   "19": {
+    "auroc_inside": 0.962026505305006,
+    "iou_matched_volume": 0.4809895198635145,
+    "sil_iou": 0.2724940129707624,
+    "opaque_frac": 0.97021484375,
+    "cad_frac": 0.2646484375,
+    "depth_err": 0.05391291001949757,
+    "chamfer_matched_volume": 0.035887857392928754
+   },
+   "20": {
+    "auroc_inside": 0.9653536265453195,
+    "iou_matched_volume": 0.47782350251486055,
+    "sil_iou": 0.25297039380073755,
+    "opaque_frac": 0.9617513020833334,
+    "cad_frac": 0.24381510416666666,
+    "depth_err": 0.05019629596568981,
+    "chamfer_matched_volume": 0.0297203118970594
+   },
+   "21": {
+    "auroc_inside": 0.957141545955353,
+    "iou_matched_volume": 0.3846720436047582,
+    "sil_iou": 0.27332243934449535,
+    "opaque_frac": 0.9605305989583334,
+    "cad_frac": 0.2630208333333333,
+    "depth_err": 0.06572769848213837,
+    "chamfer_matched_volume": 0.030936270246288318
+   },
+   "22": {
+    "auroc_inside": 0.9499369151931343,
+    "iou_matched_volume": 0.32902255639097744,
+    "sil_iou": 0.2821127538943787,
+    "opaque_frac": 0.9618326822916666,
+    "cad_frac": 0.2718912760416667,
+    "depth_err": 0.06995971446978937,
+    "chamfer_matched_volume": 0.031077863731493263
+   },
+   "23": {
+    "auroc_inside": 0.9837484473901178,
+    "iou_matched_volume": 0.4298989601003024,
+    "sil_iou": 0.18827696035603736,
+    "opaque_frac": 0.8863118489583334,
+    "cad_frac": 0.167724609375,
+    "depth_err": 0.05370771338733704,
+    "chamfer_matched_volume": 0.02530122763783061
+   },
+   "24": {
+    "auroc_inside": 0.9645942548081583,
+    "iou_matched_volume": 0.4109668668862623,
+    "sil_iou": 0.25568834611693037,
+    "opaque_frac": 0.953857421875,
+    "cad_frac": 0.24373372395833334,
+    "depth_err": 0.06113798022153304,
+    "chamfer_matched_volume": 0.042554963343350447
+   },
+   "25": {
+    "auroc_inside": 0.9784797409351443,
+    "iou_matched_volume": 0.6666666666666666,
+    "sil_iou": 0.2706594093855761,
+    "opaque_frac": 0.9778645833333334,
+    "cad_frac": 0.2648111979166667,
+    "depth_err": 0.03546343749908324,
+    "chamfer_matched_volume": 0.03992002541831711
+   },
+   "26": {
+    "auroc_inside": 0.979230628719429,
+    "iou_matched_volume": 0.6719040840906603,
+    "sil_iou": 0.2673439264876844,
+    "opaque_frac": 0.9813639322916666,
+    "cad_frac": 0.262451171875,
+    "depth_err": 0.03392836171224822,
+    "chamfer_matched_volume": 0.04335083697233555
+   },
+   "27": {
+    "auroc_inside": 0.958936842065039,
+    "iou_matched_volume": 0.618840626723327,
+    "sil_iou": 0.23931156741205192,
+    "opaque_frac": 0.97119140625,
+    "cad_frac": 0.2333984375,
+    "depth_err": 0.027883223368397447,
+    "chamfer_matched_volume": 0.03328701222255143
+   },
+   "28": {
+    "auroc_inside": 0.9864494194216974,
+    "iou_matched_volume": 0.7004505214076431,
+    "sil_iou": 0.25357084345854436,
+    "opaque_frac": 0.9733072916666666,
+    "cad_frac": 0.247802734375,
+    "depth_err": 0.030083079734788385,
+    "chamfer_matched_volume": 0.03796986429995344
+   },
+   "29": {
+    "auroc_inside": 0.9823405225261842,
+    "iou_matched_volume": 0.6615118223071411,
+    "sil_iou": 0.2441410870951746,
+    "opaque_frac": 0.9742838541666666,
+    "cad_frac": 0.23828125,
+    "depth_err": 0.02177825164237988,
+    "chamfer_matched_volume": 0.037295305644657176
+   },
+   "30": {
+    "auroc_inside": 0.9651502017668134,
+    "iou_matched_volume": 0.6578077291369311,
+    "sil_iou": 0.364659170631336,
+    "opaque_frac": 0.99365234375,
+    "cad_frac": 0.3623046875,
+    "depth_err": 0.0450251294958966,
+    "chamfer_matched_volume": 0.04988979067808968
+   }
+  },
+  "joint": {
+   "1": {
+    "auroc_inside": 0.9663529775433729,
+    "iou_matched_volume": 0.34996594005449594,
+    "sil_iou": 0.27087235625014094,
+    "opaque_frac": 0.874755859375,
+    "cad_frac": 0.235595703125,
+    "depth_err": 0.07049723875862372,
+    "chamfer_matched_volume": 0.05605559283727137
+   },
+   "2": {
+    "auroc_inside": 0.9491786970638106,
+    "iou_matched_volume": 0.3311287202845199,
+    "sil_iou": 0.31102669415255885,
+    "opaque_frac": 0.944091796875,
+    "cad_frac": 0.293212890625,
+    "depth_err": 0.07729549629739636,
+    "chamfer_matched_volume": 0.05214747245231239
+   },
+   "3": {
+    "auroc_inside": 0.9512656046166966,
+    "iou_matched_volume": 0.3759628876607199,
+    "sil_iou": 0.33547730408460524,
+    "opaque_frac": 0.9517415364583334,
+    "cad_frac": 0.319091796875,
+    "depth_err": 0.08301908522692358,
+    "chamfer_matched_volume": 0.05407543481734313
+   },
+   "4": {
+    "auroc_inside": 0.9899180321904426,
+    "iou_matched_volume": 0.6469027852827037,
+    "sil_iou": 0.24471546828729115,
+    "opaque_frac": 0.8186848958333334,
+    "cad_frac": 0.19978841145833334,
+    "depth_err": 0.050070588762055994,
+    "chamfer_matched_volume": 0.053878260568551065
+   },
+   "5": {
+    "auroc_inside": 0.9653623096907634,
+    "iou_matched_volume": 0.47664235803862937,
+    "sil_iou": 0.25875285821236166,
+    "opaque_frac": 0.9840494791666666,
+    "cad_frac": 0.2548828125,
+    "depth_err": 0.04668303529566015,
+    "chamfer_matched_volume": 0.037094865179106505
+   },
+   "6": {
+    "auroc_inside": 0.9759471807843672,
+    "iou_matched_volume": 0.49686864579097195,
+    "sil_iou": 0.2378204323127905,
+    "opaque_frac": 0.9808756510416666,
+    "cad_frac": 0.23347981770833334,
+    "depth_err": 0.05244905459231227,
+    "chamfer_matched_volume": 0.026983037955653703
+   },
+   "7": {
+    "auroc_inside": 0.9805614550186004,
+    "iou_matched_volume": 0.4446745396541109,
+    "sil_iou": 0.19715475117046954,
+    "opaque_frac": 0.9736328125,
+    "cad_frac": 0.1923828125,
+    "depth_err": 0.04405569502087537,
+    "chamfer_matched_volume": 0.021999478409651135
+   },
+   "8": {
+    "auroc_inside": 0.9771303342713877,
+    "iou_matched_volume": 0.34198293207520986,
+    "sil_iou": 0.17939771980529265,
+    "opaque_frac": 0.958251953125,
+    "cad_frac": 0.17268880208333334,
+    "depth_err": 0.044280125987369495,
+    "chamfer_matched_volume": 0.020859553647356616
+   },
+   "9": {
+    "auroc_inside": 0.9741021711097478,
+    "iou_matched_volume": 0.36800299737729486,
+    "sil_iou": 0.21514129438148857,
+    "opaque_frac": 0.9713541666666666,
+    "cad_frac": 0.20930989583333334,
+    "depth_err": 0.06617875307694421,
+    "chamfer_matched_volume": 0.025207665888892377
+   },
+   "10": {
+    "auroc_inside": 0.9705919244923965,
+    "iou_matched_volume": 0.28984320886594045,
+    "sil_iou": 0.23960394272278862,
+    "opaque_frac": 0.9822591145833334,
+    "cad_frac": 0.2353515625,
+    "depth_err": 0.09090936290340394,
+    "chamfer_matched_volume": 0.025289576064653277
+   },
+   "11": {
+    "auroc_inside": 0.9604002041473152,
+    "iou_matched_volume": 0.3412080087124068,
+    "sil_iou": 0.2580812454508025,
+    "opaque_frac": 0.981689453125,
+    "cad_frac": 0.2533365885416667,
+    "depth_err": 0.07819245826099054,
+    "chamfer_matched_volume": 0.03364397863744031
+   },
+   "12": {
+    "auroc_inside": 0.9457092787520665,
+    "iou_matched_volume": 0.35266296524778945,
+    "sil_iou": 0.29828500338709296,
+    "opaque_frac": 0.9874674479166666,
+    "cad_frac": 0.2945149739583333,
+    "depth_err": 0.07501784229814056,
+    "chamfer_matched_volume": 0.03331826135008022
+   },
+   "13": {
+    "auroc_inside": 0.9081976445226846,
+    "iou_matched_volume": 0.13855702094647013,
+    "sil_iou": 0.30971938580114605,
+    "opaque_frac": 0.9862467447916666,
+    "cad_frac": 0.3055826822916667,
+    "depth_err": 0.11646356841809886,
+    "chamfer_matched_volume": 0.06323433983470711
+   },
+   "14": {
+    "auroc_inside": 0.9340858205760946,
+    "iou_matched_volume": 0.17869737315581144,
+    "sil_iou": 0.28716543519282123,
+    "opaque_frac": 0.96044921875,
+    "cad_frac": 0.2755533854166667,
+    "depth_err": 0.10374148450522676,
+    "chamfer_matched_volume": 0.06008034263244989
+   },
+   "15": {
+    "auroc_inside": 0.9283172014407401,
+    "iou_matched_volume": 0.22783557700956436,
+    "sil_iou": 0.2948067108117811,
+    "opaque_frac": 0.9855143229166666,
+    "cad_frac": 0.2906901041666667,
+    "depth_err": 0.07348397592586442,
+    "chamfer_matched_volume": 0.05360862244184772
+   },
+   "16": {
+    "auroc_inside": 0.9122636852347175,
+    "iou_matched_volume": 0.2689980282392403,
+    "sil_iou": 0.3540621280642718,
+    "opaque_frac": 0.9956868489583334,
+    "cad_frac": 0.3525390625,
+    "depth_err": 0.08229379924650705,
+    "chamfer_matched_volume": 0.04419290349570079
+   },
+   "17": {
+    "auroc_inside": 0.8973637439018186,
+    "iou_matched_volume": 0.19914722116760608,
+    "sil_iou": 0.35964615664779775,
+    "opaque_frac": 0.9947916666666666,
+    "cad_frac": 0.35791015625,
+    "depth_err": 0.08263325671735765,
+    "chamfer_matched_volume": 0.035888618222494166
+   },
+   "18": {
+    "auroc_inside": 0.9186295049226734,
+    "iou_matched_volume": 0.14223309453084046,
+    "sil_iou": 0.33133970894708975,
+    "opaque_frac": 0.9890950520833334,
+    "cad_frac": 0.32763671875,
+    "depth_err": 0.13147600483175495,
+    "chamfer_matched_volume": 0.037184866911668876
+   },
+   "19": {
+    "auroc_inside": 0.9589089041803234,
+    "iou_matched_volume": 0.44108143361100405,
+    "sil_iou": 0.27489848720530036,
+    "opaque_frac": 0.9619954427083334,
+    "cad_frac": 0.2646484375,
+    "depth_err": 0.052445662324701915,
+    "chamfer_matched_volume": 0.057040322577432925
+   },
+   "20": {
+    "auroc_inside": 0.9638523339780497,
+    "iou_matched_volume": 0.4434519719664697,
+    "sil_iou": 0.2537953574429184,
+    "opaque_frac": 0.957763671875,
+    "cad_frac": 0.24381510416666666,
+    "depth_err": 0.049473874557011514,
+    "chamfer_matched_volume": 0.05175237269553621
+   },
+   "21": {
+    "auroc_inside": 0.9609752358897636,
+    "iou_matched_volume": 0.388199675084921,
+    "sil_iou": 0.27195983490717074,
+    "opaque_frac": 0.9651692708333334,
+    "cad_frac": 0.2630208333333333,
+    "depth_err": 0.0587509176116521,
+    "chamfer_matched_volume": 0.04392206363234199
+   },
+   "22": {
+    "auroc_inside": 0.9565534814710301,
+    "iou_matched_volume": 0.34270196361426564,
+    "sil_iou": 0.28177871776836644,
+    "opaque_frac": 0.9637044270833334,
+    "cad_frac": 0.2718912760416667,
+    "depth_err": 0.061186158234134876,
+    "chamfer_matched_volume": 0.042366047438325956
+   },
+   "23": {
+    "auroc_inside": 0.9821712329547982,
+    "iou_matched_volume": 0.43063754427390794,
+    "sil_iou": 0.19094280382551884,
+    "opaque_frac": 0.8756510416666666,
+    "cad_frac": 0.167724609375,
+    "depth_err": 0.053461996498870096,
+    "chamfer_matched_volume": 0.033279581299160386
+   },
+   "24": {
+    "auroc_inside": 0.9641300626190762,
+    "iou_matched_volume": 0.3833061053911326,
+    "sil_iou": 0.26240116639575234,
+    "opaque_frac": 0.9315592447916666,
+    "cad_frac": 0.24373372395833334,
+    "depth_err": 0.059326530641756046,
+    "chamfer_matched_volume": 0.06173675525938138
+   },
+   "25": {
+    "auroc_inside": 0.9846870043853055,
+    "iou_matched_volume": 0.7113897188171893,
+    "sil_iou": 0.2678570516804846,
+    "opaque_frac": 0.988525390625,
+    "cad_frac": 0.2648111979166667,
+    "depth_err": 0.03525884533663065,
+    "chamfer_matched_volume": 0.044846177956429416
+   },
+   "26": {
+    "auroc_inside": 0.9858582533885574,
+    "iou_matched_volume": 0.7205555086058762,
+    "sil_iou": 0.26448574712257117,
+    "opaque_frac": 0.9921875,
+    "cad_frac": 0.262451171875,
+    "depth_err": 0.03291711629532655,
+    "chamfer_matched_volume": 0.047375705912130764
+   },
+   "27": {
+    "auroc_inside": 0.9697440533427811,
+    "iou_matched_volume": 0.7454443706061348,
+    "sil_iou": 0.23591735273824443,
+    "opaque_frac": 0.988525390625,
+    "cad_frac": 0.2333984375,
+    "depth_err": 0.03010888870071186,
+    "chamfer_matched_volume": 0.027410089278684772
+   },
+   "28": {
+    "auroc_inside": 0.992747717399636,
+    "iou_matched_volume": 0.7788543932502802,
+    "sil_iou": 0.24999456033388914,
+    "opaque_frac": 0.990234375,
+    "cad_frac": 0.247802734375,
+    "depth_err": 0.03165473381065733,
+    "chamfer_matched_volume": 0.03615501419319201
+   },
+   "29": {
+    "auroc_inside": 0.9885418722587649,
+    "iou_matched_volume": 0.7180872410706016,
+    "sil_iou": 0.24031460286260806,
+    "opaque_frac": 0.9908040364583334,
+    "cad_frac": 0.23828125,
+    "depth_err": 0.022516517724584215,
+    "chamfer_matched_volume": 0.04189589479922304
+   },
+   "30": {
+    "auroc_inside": 0.976191901051265,
+    "iou_matched_volume": 0.7246771798582786,
+    "sil_iou": 0.36333731394236063,
+    "opaque_frac": 0.9974772135416666,
+    "cad_frac": 0.3623046875,
+    "depth_err": 0.045177796493245166,
+    "chamfer_matched_volume": 0.05830732234550944
+   }
+  },
+  "bbox_fill": {
+   "1": {
+    "iou_matched_volume": 0.3349953123668286
+   },
+   "2": {
+    "iou_matched_volume": 0.3676096987712355
+   },
+   "3": {
+    "iou_matched_volume": 0.33004823973350655
+   },
+   "4": {
+    "iou_matched_volume": 0.4768718707328175
+   },
+   "5": {
+    "iou_matched_volume": 0.7225573339703775
+   },
+   "6": {
+    "iou_matched_volume": 0.6204566950412106
+   },
+   "7": {
+    "iou_matched_volume": 0.6267482517482518
+   },
+   "8": {
+    "iou_matched_volume": 0.5775800286669852
+   },
+   "9": {
+    "iou_matched_volume": 0.3043009302952676
+   },
+   "10": {
+    "iou_matched_volume": 0.23396381578947367
+   },
+   "11": {
+    "iou_matched_volume": 0.2655081021236622
+   },
+   "12": {
+    "iou_matched_volume": 0.3086849586354489
+   },
+   "13": {
+    "iou_matched_volume": 0.2680832324121986
+   },
+   "14": {
+    "iou_matched_volume": 0.3308285946385053
+   },
+   "15": {
+    "iou_matched_volume": 0.41884031160716123
+   },
+   "16": {
+    "iou_matched_volume": 0.43863400521996165
+   },
+   "17": {
+    "iou_matched_volume": 0.29195684438862884
+   },
+   "18": {
+    "iou_matched_volume": 0.09403649825028199
+   },
+   "19": {
+    "iou_matched_volume": 0.471777950310559
+   },
+   "20": {
+    "iou_matched_volume": 0.4566716118334933
+   },
+   "21": {
+    "iou_matched_volume": 0.386430981973825
+   },
+   "22": {
+    "iou_matched_volume": 0.33589236850106413
+   },
+   "23": {
+    "iou_matched_volume": 0.33289835164835163
+   },
+   "24": {
+    "iou_matched_volume": 0.4644132653061224
+   },
+   "25": {
+    "iou_matched_volume": 0.7053484827490647
+   },
+   "26": {
+    "iou_matched_volume": 0.7042386983451974
+   },
+   "27": {
+    "iou_matched_volume": 0.7877258235919234
+   },
+   "28": {
+    "iou_matched_volume": 0.7627392141320348
+   },
+   "29": {
+    "iou_matched_volume": 0.9525820629034474
+   },
+   "30": {
+    "iou_matched_volume": 0.6596767210275654
+   }
+  }
+ }
+}

@@ -209,6 +209,33 @@ def field_energies(model, params, ceil, obs, meta):
   return np.stack([np.asarray(energy(int(obs.obj[i]), ceil.R[j], ceil.t[j], meta[i], obs.tokens[i], obs.fg[i])) for j, i in enumerate(ceil.rows)])
 
 
+def view_dirs(R):
+  """(N, 3, 3) allocentric rotations (object -> camera) -> (N, 3) direction from the object to the camera, object frame"""
+  return -np.asarray(R)[..., 2, :]  # -R^T e_z
+
+
+def in_holdout_cone(obj, R, dirs, deg, info):
+  """(N,) bool: the view of each crop lies within deg of its object's held-out direction, symmetric views equivalent
+  (discrete: R ~ R S, so d ~ S^T d; continuous axis a: the view is defined by the angle to a, folded if a flips)"""
+  d = view_dirs(R)
+  out = np.zeros(len(obj), bool)
+  for o in np.unique(obj):
+    s = obj == o
+    v, cfg = dirs[o - 1], info[str(int(o))]
+    if "symmetries_continuous" in cfg:
+      ax = np.asarray(cfg["symmetries_continuous"][0]["axis"], np.float64)
+      th = lambda x: np.degrees(np.arccos(np.clip(x @ ax, -1, 1)))  # noqa: E731
+      a_, b_ = th(d[s]), th(v[None])[0]
+      if cfg.get("symmetries_discrete"):
+        a_, b_ = np.minimum(a_, 180 - a_), min(b_, 180 - b_)
+      out[s] = np.abs(a_ - b_) < deg
+    else:
+      Ss = [np.eye(3)] + [np.asarray(m, np.float64).reshape(4, 4)[:3, :3] for m in cfg.get("symmetries_discrete", [])]
+      ang = np.min(np.stack([np.degrees(np.arccos(np.clip(d[s] @ S @ v, -1, 1))) for S in Ss]), 0)  # (S^T d) . v
+      out[s] = ang < deg
+  return out
+
+
 def main():
   p = argparse.ArgumentParser()
   p.add_argument("--out", required=True)
@@ -225,6 +252,8 @@ def main():
   p.add_argument("--eval_every", type=int, default=5000)
   p.add_argument("--liepose_t", action="store_true", help="fit at LiePose's translation_scaled (2D-centroid offset) instead")
   p.add_argument("--seed", type=int, default=0)
+  p.add_argument("--holdout", default=None, help="npz with dirs (30, 3): per-object viewing direction to hold out (object frame)")
+  p.add_argument("--holdout_deg", type=float, default=30.0, help="half-angle of the held-out cone (symmetry-aware)")
   # Ceiling (= tless_ret_v1's)
   p.add_argument("--val_frac", type=float, default=0.03)
   p.add_argument("--ceil_n", type=int, default=500)
@@ -252,7 +281,13 @@ def main():
   grp = np.unique(train.index)  # held-out source images, as probe_ret_tless
   held = np.random.default_rng(1234).permutation(grp)[: int(a.val_frac * len(grp))]
   is_val = np.isin(train.index, held)
-  val_rows, train_rows = np.nonzero(is_val)[0], np.nonzero(~is_val)[0]
+  if a.holdout:  # held-out viewpoints: drop every crop (train and val) whose view lies in the object's cone
+    cone = in_holdout_cone(train.obj, train.R, np.load(a.holdout)["dirs"], a.holdout_deg, json.load(open(info)))
+    print(f"holdout: {cone.sum()} of {len(cone)} crops in the cones ({a.holdout_deg} deg)", flush=True)
+    np.save(os.path.join(a.out, "holdout_rows.npy"), np.nonzero(cone)[0])
+  else:
+    cone = np.zeros(len(train.obj), bool)
+  val_rows, train_rows = np.nonzero(is_val & ~cone)[0], np.nonzero(~is_val & ~cone)[0]
   val_obs = np.sort(np.random.default_rng(99).choice(val_rows, min(a.ceil_n, len(val_rows)), replace=False))
   ceil = prt.Ceiling(train, val_obs, syms, None, a, 7)
 
