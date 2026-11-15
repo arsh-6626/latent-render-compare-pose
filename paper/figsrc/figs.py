@@ -775,9 +775,10 @@ def fig_teaser(ci=1, steps=(0, 60, 99), qual=(0, 1, 2, 3)):
   vmax = np.percentile(np.concatenate([r.ravel() for r in res]), 99)
   dim = (t["img"] * (0.35 + 0.65 * t["mask"][..., None])).astype(np.uint8)
   s_gt = silhouette(o, t["R_gt"], t["t_gt"], t["k"])
-  W, H, H3 = COL2, 4.0, 1.55
-  root = plt.figure(figsize=(W, H + H3))
-  fig, f3 = root.subfigures(2, 1, height_ratios=[H, H3], hspace=0)
+  WT, H, FR = COL2 / 0.80, 4.0, 0.80  # left block (a)-(f) at full column width, plus a right column (g)-(i); scaled to \textwidth in LaTeX
+  W = WT * FR
+  root = plt.figure(figsize=(WT, H))
+  fig, f3 = root.subfigures(1, 2, width_ratios=[FR, 1 - FR], wspace=0)
 
   def crop_ax(rect, img, outlines=(), title=None, fs=6):
     a = fig.add_axes(rect); a.imshow(img); off(a); a.set_xlim(0, 223); a.set_ylim(223, 0)
@@ -944,20 +945,20 @@ def fig_teaser(ci=1, steps=(0, 60, 99), qual=(0, 1, 2, 3)):
               Line2D([], [], color=C["ctrl"]), Line2D([], [], color=C["sym"])],
              ["ground truth", "LaRC", "pose-only diffusion (same encoder)", "current hypothesis"],
              )
-  # ================================================================ row 3: more results
-  def p3(x_, s_):
-    f3.text(x_, 0.94, s_, fontsize=7.5, fontweight="bold", va="top")
+  # ================================================================ right column: more results
+  def p3(y_, s_):
+    f3.text(0.10, y_, s_, fontsize=7.5, fontweight="bold", va="top", zorder=10)
   # (g) rotation error along the sampler: both models converge
-  a = f3.add_axes([0.045, 0.2, 0.13, 0.6])
+  a = f3.add_axes([0.32, 0.775, 0.64, 0.165])
   for nm, c in (("ctrl", C["ctrl"]), ("joint", C["larc"])):
     v = P[f"{nm}_rerr"].transpose(1, 0, 2).reshape(100, -1)
     a.plot(x, np.median(v, 1), color=c)
     a.fill_between(x, np.percentile(v, 25, 1), np.percentile(v, 75, 1), color=c, alpha=0.18, lw=0)
   a.set_yscale("log"); a.set_xticks([1, 50, 100]); a.set_xlabel("denoising step", labelpad=1)
   a.set_yticks([1, 10, 100]); a.set_yticklabels(["1", "10", "100"]); a.minorticks_off()
-  a.set_ylabel("rotation error ($^\\circ$)", labelpad=1)
-  p3(0.0, "(g) rotation: both converge")
-  # (h) per-object accuracy, LaRC vs pose-only
+  a.set_ylabel("rotation err. ($^\\circ$)", labelpad=1)
+  p3(0.995, "(g) rotation error")
+  # (h) per-object accuracy, pose-only (x) vs LaRC (y)
   th_s, th_p = np.arange(0.05, 0.51, 0.05), np.arange(5, 51, 5)
   per = {}
   for name in ("field_nowm_ft", "joint_n1"):
@@ -965,14 +966,16 @@ def fig_teaser(ci=1, steps=(0, 60, 99), qual=(0, 1, 2, 3)):
     for kk in ms:
       acc.setdefault(kk[2], []).append(((ms[kk] / DIAM[kk[2]] < th_s).mean() + (mp.get(kk, 1e9) < th_p).mean()) / 2)
     per[name] = {ob: np.mean(v) * 100 for ob, v in acc.items()}
-  objs = sorted(per["joint_n1"]); xo = np.arange(len(objs))
-  a = f3.add_axes([0.245, 0.2, 0.37, 0.6])
-  a.bar(xo - 0.2, [per["field_nowm_ft"][ob] for ob in objs], 0.4, color=C["ctrl"])
-  a.bar(xo + 0.2, [per["joint_n1"][ob] for ob in objs], 0.4, color=C["larc"])
-  a.set_xticks(xo); a.set_xticklabels(objs, fontsize=4.6); a.set_xlim(-0.7, len(objs) - 0.3); a.set_ylim(0, 100)
-  a.set_xlabel("T-LESS object", labelpad=1); a.set_ylabel("AR (MSSD, MSPD)", labelpad=1)
-  better = sum(per["joint_n1"][ob] > per["field_nowm_ft"][ob] for ob in objs)
-  p3(0.21, f"(h) per object: LaRC better on {better}/{len(objs)}")
+  objs = sorted(per["joint_n1"])
+  px = np.array([per["field_nowm_ft"][ob] for ob in objs]); py = np.array([per["joint_n1"][ob] for ob in objs])
+  better = int((py > px).sum())
+  a = f3.add_axes([0.36, 0.385, 0.25 * H / (WT * (1 - FR)), 0.25])
+  a.plot([30, 100], [30, 100], color="#999999", lw=0.6, ls="--")
+  a.scatter(px, py, s=6, color=C["larc"], zorder=3, lw=0)
+  a.set_xlim(30, 100); a.set_ylim(30, 100); a.set_xticks([40, 70, 100]); a.set_yticks([40, 70, 100])
+  a.set_xlabel("pose-only AR", labelpad=1); a.set_ylabel("LaRC AR", labelpad=1)
+  a.text(97, 34, f"{better}/{len(objs)} objects\nabove diagonal", ha="right", va="bottom", fontsize=5.4)
+  p3(0.68, "(h) per-object AR")
   # (i) symmetric objects: the 16 samples spread over the symmetry orbit, yet each is correct
   rows_, obj_, Rg_, R_, _ = _samples()
   cls = {int(ob): ("continuous" if "symmetries_continuous" in info[str(ob)] else
@@ -984,25 +987,15 @@ def fig_teaser(ci=1, steps=(0, 60, 99), qual=(0, 1, 2, 3)):
     raw.append(np.median(ang[np.triu_indices(16, 1)])); sym.append(np.median(rot_err(Rg_[i], R_[i], int(obj_[i]))))
     cl.append(cls[int(obj_[i])])
   raw, sym, cl = np.array(raw), np.array(sym), np.array(cl)
-  a = f3.add_axes([0.675, 0.2, 0.13, 0.6]); ks = ["none", "discrete", "continuous"]
+  a = f3.add_axes([0.32, 0.085, 0.64, 0.16]); ks = ["none", "discrete", "continuous"]
   a.bar(np.arange(3) - 0.2, [np.median(raw[cl == k_]) for k_ in ks], 0.4, color=C["sym"], label="spread of 16")
   a.bar(np.arange(3) + 0.2, [np.median(sym[cl == k_]) for k_ in ks], 0.4, color=C["larc"], label="error (sym.)")
   a.set_yscale("log"); a.set_yticks([1, 10, 100]); a.set_yticklabels(["1", "10", "100"]); a.minorticks_off()
+  a.set_ylim(0.8, 1500)
   a.set_xticks(range(3)); a.set_xticklabels(["none", "discr.", "cont."], fontsize=5.4); a.set_xlabel("object symmetry", labelpad=1)
-  a.set_ylabel("deg (median)", labelpad=1); a.set_ylim(0.8, 1500); a.legend(loc="upper left", fontsize=4.8, handlelength=1, ncol=2, columnspacing=0.6)
-  p3(0.64, "(i) symmetries")
-  # (j) summary table: paper tables (GT crops) and the default-detection runs (CosyPose boxes, consensus 16)
-  p3(0.835, "(j) BOP AR")
-  tab = [("", "T-LESS", "YCB-V"), ("GT crops", "", ""), ("LiePose (pub.)", "70.1", "--"), ("pose-only", "52.2", "--"),
-         ("LaRC", "82.2", "85.5"), ("  + consensus", "84.9", "89.2"), ("default det.", "", ""),
-         ("LaRC, uniform $w$", "64.6", "67.1"), ("LaRC, WM $w$", "65.8", "69.2")]
-  for i, (l0, l1, l2) in enumerate(tab):
-    yy = 0.80 - i * 0.087; bold = i == 0 or l0 in ("GT crops", "default det.")
-    kw = dict(fontsize=5.6, va="center", fontweight="bold" if bold else "normal",
-              color=C["larc"] if l0.strip().startswith(("LaRC", "+")) else C["ink"])
-    f3.text(0.835, yy, l0, ha="left", **kw); f3.text(0.945, yy, l1, ha="right", **kw); f3.text(0.995, yy, l2, ha="right", **kw)
-  f3.add_artist(Line2D([0.835, 0.997], [0.76, 0.76], color="#999999", lw=0.5))
-  root.legend(*LEG, loc="lower center", ncol=4, bbox_to_anchor=(0.5, -0.075), fontsize=6, handlelength=1.6)
+  a.set_ylabel("deg (median)", labelpad=1); a.legend(loc="upper left", fontsize=4.6, handlelength=0.8, ncol=2, columnspacing=0.4)
+  p3(0.315, "(i) symmetries")
+  root.legend(*LEG, loc="lower center", ncol=4, bbox_to_anchor=(0.5, -0.045), fontsize=6, handlelength=1.6)
   root.savefig(f"{OUT}/fig_teaser.pdf", bbox_inches="tight", pad_inches=0.02)
   root.savefig(f"{OUT}/fig_teaser.png", bbox_inches="tight", pad_inches=0.02, dpi=300)
   plt.close(root)
