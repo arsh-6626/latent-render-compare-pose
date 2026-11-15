@@ -1,0 +1,84 @@
+{
+ "region": "cone60",
+ "n_in": 1740,
+ "nearest_remaining_view_deg_pct_50_90_max": [
+  26.2,
+  48.6,
+  65.4
+ ],
+ "median": {
+  "full_field": 0.39378833770751953,
+  "heldout_field": 0.4379182457923889,
+  "own_mean_token": 0.849880576133728,
+  "nearest_remaining_view_matched": 0.9218506813049316
+ },
+ "heldout_better_than_matched_view": 0.9919540229885058,
+ "heldout_better_than_own_mean": 0.9994252873563219,
+ "by_distance": {
+  "0-5": {
+   "n": 19,
+   "full_field": 0.4027945101261139,
+   "heldout_field": 0.4249865412712097,
+   "own_mean_token": 0.8634915947914124,
+   "nearest_remaining_view_matched": 0.7997846007347107
+  },
+  "5-10": {
+   "n": 156,
+   "full_field": 0.39507657289505005,
+   "heldout_field": 0.429029643535614,
+   "own_mean_token": 0.8511015176773071,
+   "nearest_remaining_view_matched": 0.8415377140045166
+  },
+  "10-20": {
+   "n": 463,
+   "full_field": 0.40200096368789673,
+   "heldout_field": 0.42932653427124023,
+   "own_mean_token": 0.8526793718338013,
+   "nearest_remaining_view_matched": 0.8808706998825073
+  },
+  "20-30": {
+   "n": 383,
+   "full_field": 0.3874287009239197,
+   "heldout_field": 0.43419963121414185,
+   "own_mean_token": 0.8454523682594299,
+   "nearest_remaining_view_matched": 0.9136984944343567
+  },
+  "30-45": {
+   "n": 453,
+   "full_field": 0.39825013279914856,
+   "heldout_field": 0.4453037977218628,
+   "own_mean_token": 0.856438934803009,
+   "nearest_remaining_view_matched": 0.9510039687156677
+  },
+  "45-60": {
+   "n": 240,
+   "full_field": 0.38673412799835205,
+   "heldout_field": 0.44379913806915283,
+   "own_mean_token": 0.8395253419876099,
+   "nearest_remaining_view_matched": 0.9782087802886963
+  },
+  "60-90": {
+   "n": 26,
+   "full_field": 0.45263081789016724,
+   "heldout_field": 0.48455870151519775,
+   "own_mean_token": 0.8088099956512451,
+   "nearest_remaining_view_matched": 1.0103379487991333
+  }
+ },
+ "energy_P(E_perturbed>E_gt)": {
+  "full_field": {
+   "5": 0.6997916666666667,
+   "10": 0.8970833333333333,
+   "20": 0.9675,
+   "45": 0.990625,
+   "90": 0.9956039355243876
+  },
+  "heldout_field": {
+   "5": 0.6566666666666666,
+   "10": 0.845,
+   "20": 0.96125,
+   "45": 0.9897916666666666,
+   "90": 0.9953926701570681
+  }
+ }
+}

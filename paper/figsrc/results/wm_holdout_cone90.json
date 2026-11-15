@@ -1,0 +1,91 @@
+{
+ "region": "cone90",
+ "n_in": 2745,
+ "nearest_remaining_view_deg_pct_50_90_max": [
+  53.4,
+  85.6,
+  100.2
+ ],
+ "median": {
+  "full_field": 0.39995282888412476,
+  "heldout_field": 0.5384758114814758,
+  "own_mean_token": 0.8500527739524841,
+  "nearest_remaining_view_matched": 0.9688433408737183
+ },
+ "heldout_better_than_matched_view": 0.9901639344262295,
+ "heldout_better_than_own_mean": 0.9967213114754099,
+ "by_distance": {
+  "0-5": {
+   "n": 15,
+   "full_field": 0.3885329067707062,
+   "heldout_field": 0.4325246214866638,
+   "own_mean_token": 0.862346887588501,
+   "nearest_remaining_view_matched": 0.7090935111045837
+  },
+  "5-10": {
+   "n": 69,
+   "full_field": 0.40413063764572144,
+   "heldout_field": 0.45391592383384705,
+   "own_mean_token": 0.8521718978881836,
+   "nearest_remaining_view_matched": 0.9457509517669678
+  },
+  "10-20": {
+   "n": 254,
+   "full_field": 0.4004380702972412,
+   "heldout_field": 0.47717171907424927,
+   "own_mean_token": 0.8393092751502991,
+   "nearest_remaining_view_matched": 0.8880033493041992
+  },
+  "20-30": {
+   "n": 317,
+   "full_field": 0.4208645224571228,
+   "heldout_field": 0.5109477639198303,
+   "own_mean_token": 0.8481098413467407,
+   "nearest_remaining_view_matched": 0.934507429599762
+  },
+  "30-45": {
+   "n": 465,
+   "full_field": 0.4213683307170868,
+   "heldout_field": 0.5459982752799988,
+   "own_mean_token": 0.8526793718338013,
+   "nearest_remaining_view_matched": 0.9461469054222107
+  },
+  "45-60": {
+   "n": 481,
+   "full_field": 0.40039342641830444,
+   "heldout_field": 0.5552641153335571,
+   "own_mean_token": 0.8534414768218994,
+   "nearest_remaining_view_matched": 0.9641399383544922
+  },
+  "60-90": {
+   "n": 976,
+   "full_field": 0.38618940114974976,
+   "heldout_field": 0.5494085550308228,
+   "own_mean_token": 0.8536323308944702,
+   "nearest_remaining_view_matched": 1.0083186626434326
+  },
+  "90-181": {
+   "n": 168,
+   "full_field": 0.38565558195114136,
+   "heldout_field": 0.5515642166137695,
+   "own_mean_token": 0.8404021263122559,
+   "nearest_remaining_view_matched": 1.0041205883026123
+  }
+ },
+ "energy_P(E_perturbed>E_gt)": {
+  "full_field": {
+   "5": 0.7339583333333334,
+   "10": 0.9075,
+   "20": 0.9772916666666667,
+   "45": 0.995,
+   "90": 0.9976939203354298
+  },
+  "heldout_field": {
+   "5": 0.5960416666666667,
+   "10": 0.7475,
+   "20": 0.914375,
+   "45": 0.9795833333333334,
+   "90": 0.986811806573163
+  }
+ }
+}

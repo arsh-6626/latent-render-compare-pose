@@ -1,0 +1,86 @@
+{
+ "region": "dist",
+ "n_in": 2040,
+ "nearest_remaining_view_deg_pct_50_90_max": [
+  3.0,
+  8.6,
+  23.8
+ ],
+ "median": {
+  "full_field": 0.45920008420944214,
+  "heldout_field": 0.47970685362815857,
+  "own_mean_token": 0.859067440032959,
+  "nearest_remaining_view_matched": 0.8406808376312256
+ },
+ "heldout_better_than_matched_view": 0.9588235294117647,
+ "heldout_better_than_own_mean": 0.9926470588235294,
+ "by_distance": {
+  "0-5": {
+   "n": 1400,
+   "full_field": 0.4655524492263794,
+   "heldout_field": 0.48526817560195923,
+   "own_mean_token": 0.8584237098693848,
+   "nearest_remaining_view_matched": 0.8317434191703796
+  },
+  "5-10": {
+   "n": 525,
+   "full_field": 0.43964433670043945,
+   "heldout_field": 0.45943334698677063,
+   "own_mean_token": 0.8612701296806335,
+   "nearest_remaining_view_matched": 0.8428388833999634
+  },
+  "10-20": {
+   "n": 113,
+   "full_field": 0.46901676058769226,
+   "heldout_field": 0.4880526065826416,
+   "own_mean_token": 0.8572874665260315,
+   "nearest_remaining_view_matched": 0.899351179599762
+  }
+ },
+ "by_dist": {
+  "0.795-0.807": {
+   "n": 510,
+   "full_field": 0.4224851727485657,
+   "heldout_field": 0.43822795152664185,
+   "own_mean_token": 0.8615938425064087,
+   "nearest_remaining_view_matched": 0.8702007532119751
+  },
+  "0.807-0.825": {
+   "n": 510,
+   "full_field": 0.4336153268814087,
+   "heldout_field": 0.4500928521156311,
+   "own_mean_token": 0.8656108379364014,
+   "nearest_remaining_view_matched": 0.8473678827285767
+  },
+  "0.825-0.849": {
+   "n": 510,
+   "full_field": 0.47205379605293274,
+   "heldout_field": 0.49453067779541016,
+   "own_mean_token": 0.8636317253112793,
+   "nearest_remaining_view_matched": 0.850214958190918
+  },
+  "0.849-0.923": {
+   "n": 510,
+   "full_field": 0.49998506903648376,
+   "heldout_field": 0.5269821882247925,
+   "own_mean_token": 0.8433705568313599,
+   "nearest_remaining_view_matched": 0.8035832047462463
+  }
+ },
+ "energy_P(E_perturbed>E_gt)": {
+  "full_field": {
+   "5": 0.6497880883337052,
+   "10": 0.7937890974084003,
+   "20": 0.9075144508670521,
+   "45": 0.9640691668538064,
+   "90": 0.9811876699909338
+  },
+  "heldout_field": {
+   "5": 0.6356935447844538,
+   "10": 0.7945020279405137,
+   "20": 0.9019256605463501,
+   "45": 0.9757738896366084,
+   "90": 0.9799086757990868
+  }
+ }
+}
